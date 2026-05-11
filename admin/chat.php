@@ -235,57 +235,83 @@ require_once __DIR__ . '/../includes/header.php';
 
                 <!-- Chat Feed Panel -->
                 <div class="col-md-8 mb-4">
-                    <div class="card shadow-sm border-0 h-100">
+                    <div class="h-100 d-flex flex-column" style="min-height: 70vh;">
                         <?php if ($activeChatId && $activeWith === 'team_member'): ?>
                             <!-- Active Chat Header -->
-                            <div class="card-header bg-primary text-white py-3 d-flex align-items-center">
-                                <h5 class="mb-0 me-auto">
-                                    <i class="bi bi-chat-text-fill me-2"></i> <?= htmlspecialchars($activeMemberName) ?>
-                                </h5>
-                                <span class="badge bg-light text-primary"><?= ucfirst(str_replace('_', ' ', $activeMemberCategory)) ?></span>
+                            <div class="chat-header mb-3">
+                                <div class="avatar-circle">
+                                    <i class="bi bi-person-fill fs-5"></i>
+                                </div>
+                                <div class="user-info w-100 d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h5 class="mb-0 fw-bold"><?= htmlspecialchars($activeMemberName) ?></h5>
+                                        <small class="text-white-50">System Administrator</small>
+                                    </div>
+                                    <span class="badge bg-white text-primary rounded-pill px-3 py-2"><?= ucfirst(str_replace('_', ' ', $activeMemberCategory)) ?></span>
+                                </div>
                             </div>
                             
                             <!-- Chat Box -->
-                            <div class="card-body p-4 bg-light overflow-auto" id="chat-box" style="height: 50vh; display: flex; flex-direction: column;">
+                            <div class="chat-box-area flex-grow-1" id="chat-box">
                                 <?php if (empty($messages)): ?>
-                                    <div class="text-center text-muted mt-auto mb-auto">
+                                    <div class="text-center text-muted mt-auto mb-auto h-100 d-flex align-items-center justify-content-center">
                                         <p class="mb-0 bg-white d-inline-block px-3 py-2 rounded shadow-sm">No messages yet. Send a message below to start the conversation.</p>
                                     </div>
-                                <?php else: ?>
-                                    <?php foreach ($messages as $msg): 
+                                <?php else: 
+                                    $prevDate = null;
+                                    foreach ($messages as $msg): 
                                         $isMine = ($msg['sender_type'] === 'admin' && $msg['sender_id'] == $adminId);
-                                    ?>
-                                        <div class="d-flex flex-column mb-3 <?= $isMine ? 'align-items-end' : 'align-items-start' ?>">
-                                            <div class="chat-bubble <?= $isMine ? 'chat-bubble-mine' : 'chat-bubble-other' ?>">
-                                                <p class="mb-0"><?= nl2br(htmlspecialchars($msg['message'])) ?></p>
-                                                <span class="msg-time"><?= date('h:i A', strtotime($msg['created_at'])) ?></span>
+                                        $msgDate = date('Y-m-d', strtotime($msg['created_at']));
+                                        $today = date('Y-m-d');
+                                        $yesterday = date('Y-m-d', strtotime('-1 day'));
+                                        if ($msgDate === $today)          $dateLabel = 'Today';
+                                        elseif ($msgDate === $yesterday)  $dateLabel = 'Yesterday';
+                                        else                              $dateLabel = date('d M Y', strtotime($msg['created_at']));
+                                ?>
+                                    <?php if ($prevDate !== $msgDate): $prevDate = $msgDate; ?>
+                                        <div class="chat-date-divider"><span><?= $dateLabel ?></span></div>
+                                    <?php endif; ?>
+
+                                    <div class="chat-bubble-container <?= $isMine ? 'mine' : 'theirs' ?>">
+                                        <div class="chat-avatar <?= $isMine ? 'mine' : 'theirs' ?>"><?= $isMine ? 'A' : strtoupper(substr($activeMemberName,0,1)) ?></div>
+                                        <div class="d-flex flex-column align-items-start">
+                                            <div class="chat-bubble">
+                                                <?= nl2br(htmlspecialchars($msg['message'])) ?>
+                                            </div>
+                                            <div class="chat-meta">
+                                                <?= date('h:i A', strtotime($msg['created_at'])) ?>
+                                                <?php if ($isMine): ?>
+                                                    <i class="bi <?= $msg['is_read'] ? 'bi-check2-all tick-read' : 'bi-check2 tick-unread' ?>"></i>
+                                                <?php endif; ?>
                                             </div>
                                         </div>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
+                                    </div>
+                                <?php endforeach; endif; ?>
                             </div>
                             
                             <!-- Reply Input -->
-                            <div class="card-footer bg-white p-3">
+                            <div class="chat-input-area mt-3">
                                 <form method="POST" action="">
                                     <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                                     <input type="hidden" name="action" value="send_message">
                                     <input type="hidden" name="receiver_id" value="<?= $activeChatId ?>">
                                     
                                     <div class="input-group">
-                                        <textarea name="message" class="form-control bg-light" rows="2" placeholder="Type your message..." required maxlength="1000" style="resize: none; border-radius: 20px 0 0 20px; border-right: 0;"></textarea>
-                                        <button class="btn btn-primary px-4 fw-bold shadow-sm" type="submit" style="border-radius: 0 20px 20px 0;">
-                                            Send <i class="bi bi-send-fill ms-1"></i>
+                                        <textarea name="message" class="form-control" rows="1" placeholder="Type your message..." required maxlength="1000"></textarea>
+                                        <button class="btn btn-send d-flex align-items-center justify-content-center" type="submit" style="width: 100px;">
+                                            <span class="me-2 fw-bold">Send</span> <i class="bi bi-send-fill"></i>
                                         </button>
                                     </div>
                                 </form>
                             </div>
                         <?php else: ?>
                             <!-- Empty State -->
-                            <div class="card-body d-flex flex-column justify-content-center align-items-center bg-light text-muted">
-                                <i class="bi bi-chat-square-dots display-1 mb-3 opacity-25"></i>
-                                <h4>Select a conversation</h4>
-                                <p>Click on a team member from the directory to view or start a chat thread.</p>
+                            <div class="card shadow-sm border-0 h-100">
+                                <div class="card-body d-flex flex-column justify-content-center align-items-center bg-light text-muted h-100" style="min-height: 400px;">
+                                    <i class="bi bi-chat-square-dots display-1 mb-3 opacity-25"></i>
+                                    <h4>Select a conversation</h4>
+                                    <p>Click on a team member from the directory to view or start a chat thread.</p>
+                                </div>
                             </div>
                         <?php endif; ?>
                     </div>
