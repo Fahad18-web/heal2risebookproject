@@ -79,8 +79,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Close Case
         if ($action === 'close_case') {
             $closureRemarks = sanitize($_POST['closure_remarks'] ?? '');
+            $userOutcome = sanitize($_POST['user_outcome'] ?? 'recovered');
+            
             if ($closureRemarks) {
-                $result = adminCloseCase($caseId, $closureRemarks, $adminId);
+                $result = adminCloseCase($caseId, $closureRemarks, $adminId, $userOutcome);
                 setFlashMessage($result['success'] ? 'Case closed successfully!' : $result['error'], $result['success'] ? 'success' : 'danger');
             }
         }
@@ -138,8 +140,10 @@ $availableNGOs = $stmt->fetchAll();
 // Get team members for assignment (from assigned NGO)
 $availableTeamMembers = [];
 if ($case['ngo_id']) {
-    $stmt = $db->prepare("SELECT id, full_name, role, cases_assigned, max_cases, is_available FROM team_members WHERE ngo_id = ? AND status = 'active' ORDER BY full_name");
-    $stmt->execute([$case['ngo_id']]);
+    $stmt = $db->prepare("SELECT id, full_name, category, max_cases, is_available, status,
+    (SELECT COUNT(*) FROM cases WHERE team_member_id = team_members.id AND status NOT IN ('closed', 'cancelled')) as cases_assigned 
+    FROM team_members WHERE status = 'active' ORDER BY full_name");
+    $stmt->execute();
     $availableTeamMembers = $stmt->fetchAll();
 }
 
@@ -173,6 +177,9 @@ require_once __DIR__ . '/../includes/header.php';
                         </a>
                         <a class="nav-link active" href="<?= url('/admin/cases.php') ?>">
                             <i class="bi bi-folder"></i>Cases
+                        </a>
+                        <a class="nav-link" href="<?= url('/admin/chat.php') ?>">
+                            <i class="bi bi-chat-dots"></i>Messages
                         </a>
                         <hr>
                         <a class="nav-link text-danger" href="<?= url('/logout.php') ?>">
@@ -346,7 +353,7 @@ require_once __DIR__ . '/../includes/header.php';
                                                         <?php foreach ($availableTeamMembers as $member): ?>
                                                             <option value="<?= $member['id'] ?>" <?= $case['team_member_id'] == $member['id'] ? 'selected' : '' ?>>
                                                                 <?= htmlspecialchars($member['full_name']) ?> 
-                                                                (<?= ucfirst($member['role']) ?>) 
+                                                                  (<?= ucfirst(str_replace('_', ' ', $member['category'])) ?>)
                                                                 - <?= $member['cases_assigned'] ?>/<?= $member['max_cases'] ?> cases
                                                                 <?= $member['is_available'] ? '✓' : '⚠' ?>
                                                             </option>
@@ -406,21 +413,28 @@ require_once __DIR__ . '/../includes/header.php';
                                     
                                     <!-- Close Case Tab -->
                                     <div class="tab-pane fade" id="closeCase" role="tabpanel">
-                                        <div class="alert alert-danger">
+                                        <div class="alert alert-warning">
                                             <i class="bi bi-exclamation-triangle me-2"></i>
-                                            <strong>Warning:</strong> Closing a case is final. The user's status will be set to "recovered". 
-                                            Ensure all services have been completed and the user has shown recovery.
+                                            <strong>Warning:</strong> Closing a case is final. Select the correct user outcome below.
                                         </div>
-                                        <form method="POST" onsubmit="return confirm('Are you sure you want to close this case? This action marks the user as recovered.');">
+                                        <form method="POST" onsubmit="return confirm('Are you sure you want to close this case?');">
                                             <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                                             <input type="hidden" name="action" value="close_case">
+                                            <div class="mb-3">
+                                                <label class="form-label">User Outcome *</label>
+                                                <select name="user_outcome" class="form-select" required>
+                                                    <option value="recovered">Recovered (Successfully finished treatment)</option>
+                                                    <option value="active">Active (Case closed but user still needs help)</option>
+                                                    <option value="cancelled">Cancelled/Rejected (Did not complete process)</option>
+                                                </select>
+                                            </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Closure Remarks *</label>
                                                 <textarea name="closure_remarks" class="form-control" rows="4" 
                                                           placeholder="Summarize the case outcome, recovery status, and any follow-up recommendations..." required minlength="10"></textarea>
                                             </div>
                                             <button type="submit" class="btn btn-danger">
-                                                <i class="bi bi-check-circle me-2"></i>Close Case &amp; Mark Recovered
+                                                <i class="bi bi-check-circle me-2"></i>Close Case
                                             </button>
                                         </form>
                                     </div>

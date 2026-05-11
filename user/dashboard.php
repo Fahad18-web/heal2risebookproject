@@ -191,6 +191,11 @@ require_once __DIR__ . '/../includes/header.php';
                                                     <a href="<?= url('/user/case-details.php?id=' . $case['id']) ?>" class="btn btn-sm btn-outline-primary">
                                                         View
                                                     </a>
+                                                    <?php if ($case['team_member_id']): ?>
+                                                        <a href="<?= url('/user/chat-reply.php?case_id=' . $case['id']) ?>" class="btn btn-sm btn-outline-info ms-1" title="Chat">
+                                                            <i class="bi bi-chat-dots"></i>
+                                                        </a>
+                                                    <?php endif; ?>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>

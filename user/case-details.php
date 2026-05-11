@@ -20,6 +20,31 @@ if (!$caseId) {
 
 $db = getDB();
 
+// Handle Satisfaction Form Submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'submit_satisfaction') {
+    if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        setFlashMessage('Invalid request. Please try again.', 'danger');
+    } else {
+        $satisfaction = $_POST['satisfaction'] ?? '';
+        
+        if (in_array($satisfaction, ['satisfied', 'not_satisfied'])) {
+            $stmtUpdate = $db->prepare("UPDATE satisfaction_requests SET user_response = ?, user_responded_at = NOW() WHERE case_id = ?");
+            $stmtUpdate->execute([$satisfaction, $caseId]);
+            
+            if ($satisfaction === 'satisfied') {
+                if (checkBothSatisfied($caseId)) {
+                    notifyAdminForClosure($caseId);
+                }
+                setFlashMessage('Thank you for confirming your satisfaction!', 'success');
+            } else {
+                setFlashMessage('Your team member has been notified that you need further support.', 'warning');
+            }
+            redirect("/user/case-details.php?id={$caseId}");
+            exit;
+        }
+    }
+}
+
 // Get case details (only if belongs to this user)
 $stmt = $db->prepare("
     SELECT c.*, 
@@ -83,6 +108,9 @@ require_once __DIR__ . '/../includes/header.php';
                         </a>
                         <a class="nav-link" href="<?= url('/user/request-support.php') ?>">
                             <i class="bi bi-plus-circle"></i>Request Support
+                        </a>
+                        <a class="nav-link" href="<?= url('/user/chat-reply.php?case_id=' . $caseId) ?>">
+                            <i class="bi bi-chat-dots"></i>Messages
                         </a>
                         <a class="nav-link" href="<?= url('/user/profile.php') ?>">
                             <i class="bi bi-person"></i>Profile
@@ -171,6 +199,54 @@ require_once __DIR__ . '/../includes/header.php';
                                 </div>
                             </div>
                         </div>
+
+                        <!-- Case Progress Bar -->
+                        <div class="card mb-4 shadow-sm border-0">
+                            <div class="card-header bg-white border-bottom-0 pb-0">
+                                <i class="bi bi-bar-chart-fill me-2 text-primary"></i><strong>Case Progress Tracker</strong>
+                            </div>
+                            <div class="card-body">
+                                <?php 
+                                    $prog = (int)($case['progress_percentage'] ?? 0); 
+                                    $progColor = $prog == 100 ? 'success' : ($prog >= 50 ? 'warning' : 'danger');
+                                ?>
+                                <div class="progress shadow-sm" style="height: 25px; border-radius: 15px;">
+                                    <div class="progress-bar bg-<?= $progColor ?> progress-bar-striped progress-bar-animated" role="progressbar" 
+                                         style="width: <?= $prog ?>%;" aria-valuenow="<?= $prog ?>" aria-valuemin="0" aria-valuemax="100">
+                                        <span class="fw-bold text-white d-block w-100 text-center" style="font-size: 1rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);"><?= $prog ?>%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Satisfaction Confirmation Action -->
+                        <?php
+                        $stmtCheckReq = $db->prepare("SELECT * FROM satisfaction_requests WHERE case_id = ? AND user_response = 'pending'");
+                        $stmtCheckReq->execute([$caseId]);
+                        $pendingRequest = $stmtCheckReq->fetch();
+
+                        if ($pendingRequest):
+                        ?>
+                        <div class="card mb-4 border-success align-items-center text-center shadow-sm">
+                            <div class="card-body p-4 w-100">
+                                <i class="bi bi-check-circle display-4 text-success mb-3"></i>
+                                <h5 class="mb-2">Your case has reached 100% progress.</h5>
+                                <p class="text-muted mb-4">Are you satisfied with the support you received?</p>
+                                
+                                <form method="POST" action="" class="d-flex justify-content-center gap-3">
+                                    <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                    <input type="hidden" name="action" value="submit_satisfaction">
+                                    
+                                    <button type="submit" name="satisfaction" value="satisfied" class="btn btn-success btn-lg px-4 rounded-pill shadow-sm">
+                                        ✅ Yes, I am satisfied
+                                    </button>
+                                    <button type="submit" name="satisfaction" value="not_satisfied" class="btn btn-outline-danger btn-lg px-4 rounded-pill">
+                                        ❌ Not yet
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        <?php endif; ?>
 
                         <!-- Counseling Sessions -->
                         <?php if (!empty($sessions)): ?>
@@ -387,6 +463,13 @@ require_once __DIR__ . '/../includes/header.php';
                                         <i class="bi bi-envelope text-primary me-2"></i>
                                         <a href="mailto:<?= htmlspecialchars($case['team_member_email']) ?>"><?= htmlspecialchars($case['team_member_email']) ?></a>
                                     </p>
+                                    
+                                    <!-- Team Member Chat Button -->
+                                    <div class="mt-3">
+                                        <a href="<?= url('/user/chat-reply.php?case_id=' . $caseId) ?>" class="btn btn-primary w-100 rounded-pill shadow-sm">
+                                            💬 Message Team Member
+                                        </a>
+                                    </div>
                                 <?php else: ?>
                                     <div class="text-center py-3">
                                         <i class="bi bi-person-plus display-4 text-muted mb-3"></i>

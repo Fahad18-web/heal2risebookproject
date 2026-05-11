@@ -12,6 +12,15 @@ requireLogin('admin');
 $adminId = getCurrentUserId();
 $db = getDB();
 
+// Handle Mark All Read Action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'mark_all_read') {
+    if (verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        $stmt = $db->prepare("UPDATE notifications SET is_read = 1 WHERE user_type = 'admin' AND user_id = ?");
+        $stmt->execute([$adminId]);
+        redirect('/admin/dashboard.php');
+    }
+}
+
 // Get statistics
 $stats = [];
 
@@ -109,6 +118,21 @@ require_once __DIR__ . '/../includes/header.php';
                             <i class="bi bi-cash-stack"></i>Donations
                             <?php if ($stats['donation_pending_count'] > 0): ?>
                                 <span class="badge bg-warning ms-auto"><?= $stats['donation_pending_count'] ?></span>
+                            <?php endif; ?>
+                        </a>
+                        <a class="nav-link" href="<?= url('/admin/create-team-member.php') ?>">
+                            <i class="bi bi-people me-2"></i>Team Members
+                        </a>
+                        <a class="nav-link" href="<?= url('/admin/chat.php') ?>">
+                            <i class="bi bi-chat-dots me-2"></i>Messages
+                            <?php
+                            $pendingClosure = $db->prepare("SELECT COUNT(*) FROM satisfaction_requests 
+                                WHERE closure_request_sent = 1 AND admin_decision = 'pending'");
+                            $pendingClosure->execute();
+                            $closureCount = $pendingClosure->fetchColumn();
+                            if ($closureCount > 0):
+                            ?>
+                            <span class="badge bg-danger ms-auto"><?= $closureCount ?></span>
                             <?php endif; ?>
                         </a>
                         <hr>

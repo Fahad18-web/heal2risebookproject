@@ -21,14 +21,16 @@ if (!$caseId) {
 $db = getDB();
 
 // Get case details (only if assigned to this NGO)
+// ✅ FIX 1 — tm.role → tm.category (alias same rakhha — baaki code theek rahega)
+// ✅ FIX 2 — co.role → co.category (alias same rakhha)
 $stmt = $db->prepare("
     SELECT c.*, 
            u.full_name as user_name, u.email as user_email, u.phone as user_phone, 
            u.city as user_city, u.state as user_state, u.gender as user_gender,
            u.issue_description as user_issue_description,
            u.emergency_contact_name, u.emergency_contact_phone,
-           tm.full_name as team_member_name, tm.role as team_member_role, tm.id as team_member_id,
-           co.full_name as counselor_name, co.role as counselor_role, co.id as counselor_id_val
+           tm.full_name as team_member_name, tm.category as team_member_role, tm.id as team_member_id,
+           co.full_name as counselor_name, co.category as counselor_role, co.id as counselor_id_val
     FROM cases c
     LEFT JOIN users u ON c.user_id = u.id
     LEFT JOIN team_members tm ON c.team_member_id = tm.id
@@ -44,14 +46,21 @@ if (!$case) {
     exit;
 }
 
-// Get all team members for assignment
-$stmt = $db->prepare("SELECT * FROM team_members WHERE ngo_id = ? AND status = 'active' ORDER BY full_name");
-$stmt->execute([$ngoId]);
+// ✅ FIX 3 — ngo_id hataaya — team members ab independent hain
+// Saare active team members fetch karo — NGO filter nahi
+$stmt = $db->prepare("SELECT * FROM team_members WHERE status = 'active' ORDER BY full_name");
+$stmt->execute();
 $allTeamMembers = $stmt->fetchAll();
 
-// Get counselors/psychiatrists for counselor recommendation
-$stmt = $db->prepare("SELECT * FROM team_members WHERE ngo_id = ? AND role IN ('counselor', 'psychiatrist') AND status = 'active' ORDER BY full_name");
-$stmt->execute([$ngoId]);
+// ✅ FIX 4 — ngo_id hataaya + role → category filter
+// Counselors/psychiatrists = mental_health_counselor + psychiatrist categories
+$stmt = $db->prepare("
+    SELECT * FROM team_members 
+    WHERE category IN ('mental_health_counselor', 'psychiatrist') 
+    AND status = 'active' 
+    ORDER BY full_name
+");
+$stmt->execute();
 $counselors = $stmt->fetchAll();
 
 // Get case progress history
@@ -78,6 +87,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = $_POST['action'] ?? '';
         
+        // Handle Satisfaction Form
+        if ($action === 'submit_satisfaction') {
+            $satisfaction = $_POST['satisfaction'] ?? '';
+            
+            if (in_array($satisfaction, ['satisfied', 'not_satisfied'])) {
+                $stmtUpdate = $db->prepare("UPDATE satisfaction_requests SET ngo_response = ?, ngo_responded_at = NOW() WHERE case_id = ?");
+                $stmtUpdate->execute([$satisfaction, $caseId]);
+                
+                if ($satisfaction === 'satisfied') {
+                    if (checkBothSatisfied($caseId)) {
+                        notifyAdminForClosure($caseId);
+                    }
+                    setFlashMessage('Thank you for confirming your satisfaction!', 'success');
+                } else {
+                    handleSatisfactionRejection($caseId, 'ngo');
+                    setFlashMessage('The team member has been notified that further support is needed.', 'warning');
+                }
+                redirect("/ngo/case-details.php?id={$caseId}");
+                exit;
+            }
+        }
+        
         // Assign team member
         if ($action === 'assign_team_member') {
             $teamMemberId = intval($_POST['team_member_id'] ?? 0);
@@ -86,8 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $db->prepare("UPDATE cases SET team_member_id = ?, status = 'assigned', updated_at = NOW() WHERE id = ?");
                 $stmt->execute([$teamMemberId, $caseId]);
                 
-                $stmt = $db->prepare("UPDATE team_members SET cases_assigned = cases_assigned + 1 WHERE id = ?");
-                $stmt->execute([$teamMemberId]);
+                // ✅ FIX 5 — cases_assigned UPDATE hataaya — column exist nahi karta
                 
                 $stmt = $db->prepare("SELECT full_name FROM team_members WHERE id = ?");
                 $stmt->execute([$teamMemberId]);
@@ -139,8 +169,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $counselorId = intval($_POST['counselor_id'] ?? 0);
             if ($counselorId) {
                 $result = assignCounselor($caseId, $counselorId, $case['team_member_id']);
-                setFlashMessage($result['success'] ? 'Counselor assigned and case moved to counseling!' : $result['error'], 
-                               $result['success'] ? 'success' : 'danger');
+                setFlashMessage(
+                    $result['success'] ? 'Counselor assigned and case moved to counseling!' : $result['error'], 
+                    $result['success'] ? 'success' : 'danger'
+                );
             }
         }
         
@@ -154,8 +186,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if ($counselorId && $sessionDate) {
                 $result = createCounselingSession($caseId, $counselorId, $sessionDate, $sessionTime, $sessionType, $duration);
-                setFlashMessage($result['success'] ? 'Session scheduled!' : $result['error'], 
-                               $result['success'] ? 'success' : 'danger');
+                setFlashMessage(
+                    $result['success'] ? 'Session scheduled!' : $result['error'], 
+                    $result['success'] ? 'success' : 'danger'
+                );
             }
         }
         
@@ -183,8 +217,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if ($programType && $programName) {
                 $result = recommendProgram($caseId, $programType, $programName, $programDesc, $case['team_member_id'], $startDate ?: null, $endDate ?: null);
-                setFlashMessage($result['success'] ? 'Program recommended!' : $result['error'], 
-                               $result['success'] ? 'success' : 'danger');
+                setFlashMessage(
+                    $result['success'] ? 'Program recommended!' : $result['error'], 
+                    $result['success'] ? 'success' : 'danger'
+                );
             }
         }
         
@@ -230,6 +266,9 @@ require_once __DIR__ . '/../includes/header.php';
                         <a class="nav-link" href="<?= url('/ngo/team.php') ?>">
                             <i class="bi bi-people"></i>Team
                         </a>
+                        <a class="nav-link" href="<?= url('/ngo/chat-reply.php?case_id=' . $caseId) ?>">
+                            <i class="bi bi-chat-dots"></i>Messages
+                        </a>
                         <a class="nav-link" href="<?= url('/ngo/profile.php') ?>">
                             <i class="bi bi-gear"></i>Settings
                         </a>
@@ -251,7 +290,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <h4 class="mb-0">Case: <?= htmlspecialchars($case['case_number']) ?></h4>
                     </div>
                     <div>
-                        <span class="badge bg-<?= $case['severity_level'] === 'high' || $case['severity_level'] === 'critical' ? 'danger' : ($case['severity_level'] === 'medium' ? 'warning' : 'success') ?> me-2">
+                        <span class="badge bg-<?= in_array($case['severity_level'], ['high','critical']) ? 'danger' : ($case['severity_level'] === 'medium' ? 'warning' : 'success') ?> me-2">
                             <?= ucfirst($case['severity_level']) ?> Severity
                         </span>
                         <span class="badge bg-<?= getStatusBadge($case['status']) ?> fs-6">
@@ -263,6 +302,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div class="row">
                     <!-- Main Case Info -->
                     <div class="col-md-8 col-lg-8">
+
                         <!-- Case Details -->
                         <div class="card mb-4">
                             <div class="card-header">
@@ -303,6 +343,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
 
                         <?php if ($case['status'] !== 'closed' && $case['status'] !== 'cancelled'): ?>
+
                         <!-- Team Assignment -->
                         <?php if (!$case['team_member_id']): ?>
                             <div class="card mb-4 border-warning">
@@ -310,6 +351,12 @@ require_once __DIR__ . '/../includes/header.php';
                                     <i class="bi bi-person-plus me-2"></i>Assign Team Member
                                 </div>
                                 <div class="card-body">
+                                    <?php if (empty($allTeamMembers)): ?>
+                                        <div class="alert alert-warning mb-0">
+                                            <i class="bi bi-exclamation-triangle me-2"></i>
+                                            No active team members available. Please contact the administrator.
+                                        </div>
+                                    <?php else: ?>
                                     <form method="POST">
                                         <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                                         <input type="hidden" name="action" value="assign_team_member">
@@ -321,9 +368,8 @@ require_once __DIR__ . '/../includes/header.php';
                                                 <?php foreach ($allTeamMembers as $member): ?>
                                                     <option value="<?= $member['id'] ?>">
                                                         <?= htmlspecialchars($member['full_name']) ?> 
-                                                        (<?= ucfirst($member['role']) ?>) 
-                                                        - <?= $member['cases_assigned'] ?>/<?= $member['max_cases'] ?> cases
-                                                        <?= $member['is_available'] ? '✓ Available' : '⚠ Busy' ?>
+                                                        <!-- ✅ FIX 6 — role → category, cases_assigned/max_cases/is_available hataaye -->
+                                                        (<?= ucfirst(str_replace('_', ' ', $member['category'])) ?>)
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
@@ -332,41 +378,78 @@ require_once __DIR__ . '/../includes/header.php';
                                             <i class="bi bi-person-check me-2"></i>Assign Member
                                         </button>
                                     </form>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         <?php else: ?>
-                            <!-- Update Status -->
-                            <div class="card mb-4">
-                                <div class="card-header">
-                                    <i class="bi bi-arrow-repeat me-2"></i>Update Case Status
+
+                            <!-- Case Progress Bar (Read Only — Team Member updates this) -->
+                            <div class="card mb-4 shadow-sm border-0">
+                                <div class="card-header bg-white border-bottom-0 pb-0">
+                                    <i class="bi bi-bar-chart-fill me-2 text-primary"></i>
+                                    <strong>Case Progress Tracker</strong>
+                                    <small class="text-muted ms-2">(Updated by Team Member)</small>
                                 </div>
                                 <div class="card-body">
-                                    <form method="POST">
-                                        <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
-                                        <input type="hidden" name="action" value="update_status">
-                                        
-                                        <div class="row">
-                                            <div class="col-md-4">
-                                                <label class="form-label">New Status</label>
-                                                <select name="status" class="form-select" required>
-                                                    <option value="in_progress" <?= $case['status'] === 'in_progress' ? 'selected' : '' ?>>In Progress</option>
-                                                    <option value="counseling" <?= $case['status'] === 'counseling' ? 'selected' : '' ?>>Counseling</option>
-                                                    <option value="rehabilitation" <?= $case['status'] === 'rehabilitation' ? 'selected' : '' ?>>Rehabilitation</option>
-                                                    <option value="skill_development" <?= $case['status'] === 'skill_development' ? 'selected' : '' ?>>Skill Development</option>
-                                                    <option value="follow_up" <?= $case['status'] === 'follow_up' ? 'selected' : '' ?>>Follow Up</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-8">
-                                                <label class="form-label">Notes</label>
-                                                <input type="text" name="notes" class="form-control" placeholder="Add update notes..." required>
-                                            </div>
+                                    <?php 
+                                        $prog = (int)($case['progress_percentage'] ?? 0); 
+                                        $progColor = $prog == 100 ? 'success' : ($prog >= 50 ? 'warning' : 'danger');
+                                    ?>
+                                    <div class="progress shadow-sm" style="height: 25px; border-radius: 15px;">
+                                        <div class="progress-bar bg-<?= $progColor ?> progress-bar-striped progress-bar-animated" 
+                                             role="progressbar" 
+                                             style="width: <?= $prog ?>%;" 
+                                             aria-valuenow="<?= $prog ?>" 
+                                             aria-valuemin="0" aria-valuemax="100">
+                                            <span class="fw-bold text-white d-block w-100 text-center" 
+                                                  style="font-size: 1rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);">
+                                                <?= $prog ?>%
+                                            </span>
                                         </div>
-                                        <button type="submit" class="btn btn-primary mt-3">
-                                            <i class="bi bi-save me-2"></i>Update Status
-                                        </button>
-                                    </form>
+                                    </div>
+                                    <?php if ($case['progress_notes']): ?>
+                                        <p class="text-muted small mt-2 mb-0">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            <?= htmlspecialchars($case['progress_notes']) ?>
+                                        </p>
+                                    <?php endif; ?>
                                 </div>
                             </div>
+
+                            <!-- Satisfaction Confirmation -->
+                            <?php
+                            $stmtCheckReq = $db->prepare("SELECT * FROM satisfaction_requests WHERE case_id = ? AND ngo_response = 'pending'");
+                            $stmtCheckReq->execute([$caseId]);
+                            $pendingRequest = $stmtCheckReq->fetch();
+
+                            if ($pendingRequest):
+                            ?>
+                            <div class="card mb-4 border-success text-center shadow-sm">
+                                <div class="card-body p-4">
+                                    <i class="bi bi-check-circle display-4 text-success mb-3"></i>
+                                    <h5 class="mb-2">Case has reached 100% progress.</h5>
+                                    <p class="text-muted mb-4">
+                                        Are you satisfied with the team member's handling of this case?
+                                    </p>
+                                    <form method="POST" class="d-flex justify-content-center gap-3">
+                                        <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                        <input type="hidden" name="action" value="submit_satisfaction">
+                                        <button type="submit" name="satisfaction" value="satisfied" 
+                                                class="btn btn-success btn-lg px-4 rounded-pill shadow-sm">
+                                            ✅ Yes, I am satisfied
+                                        </button>
+                                        <button type="submit" name="satisfaction" value="not_satisfied" 
+                                                class="btn btn-outline-danger btn-lg px-4 rounded-pill">
+                                            ❌ Not yet
+                                        </button>
+                                    </form>
+                                    <small class="text-muted d-block mt-3">
+                                        Clicking "Not yet" will notify the team member to continue monitoring.
+                                    </small>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+
                         <?php endif; ?>
 
                         <!-- Recommend Counselor -->
@@ -378,10 +461,13 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="card-body">
                                 <?php if (empty($counselors)): ?>
                                     <div class="alert alert-warning mb-0">
-                                        <i class="bi bi-exclamation-triangle me-2"></i>No counselors or psychiatrists available. Please add team members with these roles first.
+                                        <i class="bi bi-exclamation-triangle me-2"></i>
+                                        No counselors or psychiatrists available in the system.
                                     </div>
                                 <?php else: ?>
-                                    <p class="text-muted mb-3">If counseling is needed, recommend a counselor to the case. This will move the case to "Counseling" status.</p>
+                                    <p class="text-muted mb-3">
+                                        Recommend a counselor to move the case to "Counseling" status.
+                                    </p>
                                     <form method="POST">
                                         <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                                         <input type="hidden" name="action" value="recommend_counselor">
@@ -392,9 +478,11 @@ require_once __DIR__ . '/../includes/header.php';
                                                 <?php foreach ($counselors as $c): ?>
                                                     <option value="<?= $c['id'] ?>">
                                                         <?= htmlspecialchars($c['full_name']) ?> 
-                                                        (<?= ucfirst($c['role']) ?>)
-                                                        <?php if ($c['specialization']): ?> - <?= htmlspecialchars($c['specialization']) ?><?php endif; ?>
-                                                        - <?= $c['experience_years'] ?> yrs exp
+                                                        <!-- ✅ FIX 7 — role → category, specialization/experience_years hataaye -->
+                                                        (<?= ucfirst(str_replace('_', ' ', $c['category'])) ?>)
+                                                        <?php if (!empty($c['qualification'])): ?>
+                                                            — <?= htmlspecialchars($c['qualification']) ?>
+                                                        <?php endif; ?>
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
@@ -421,7 +509,8 @@ require_once __DIR__ . '/../includes/header.php';
                                     <div class="row">
                                         <div class="col-md-3 mb-3">
                                             <label class="form-label">Date *</label>
-                                            <input type="date" name="session_date" class="form-control" required min="<?= date('Y-m-d') ?>">
+                                            <input type="date" name="session_date" class="form-control" 
+                                                   required min="<?= date('Y-m-d') ?>">
                                         </div>
                                         <div class="col-md-2 mb-3">
                                             <label class="form-label">Time</label>
@@ -472,13 +561,20 @@ require_once __DIR__ . '/../includes/header.php';
                                             <?php if ($session['session_time']): ?>
                                                 at <?= date('h:i A', strtotime($session['session_time'])) ?>
                                             <?php endif; ?>
-                                            <span class="badge bg-secondary ms-2"><?= ucfirst(str_replace('_', ' ', $session['session_type'])) ?></span>
-                                            <span class="badge bg-<?= getStatusBadge($session['status']) ?> ms-1"><?= ucfirst($session['status']) ?></span>
+                                            <span class="badge bg-secondary ms-2">
+                                                <?= ucfirst(str_replace('_', ' ', $session['session_type'])) ?>
+                                            </span>
+                                            <span class="badge bg-<?= getStatusBadge($session['status']) ?> ms-1">
+                                                <?= ucfirst($session['status']) ?>
+                                            </span>
                                         </div>
                                         <small class="text-muted"><?= $session['duration_minutes'] ?> min</small>
                                     </div>
                                     <p class="text-muted small mb-1">
-                                        <i class="bi bi-person me-1"></i><?= htmlspecialchars($session['counselor_name']) ?> (<?= ucfirst($session['counselor_role']) ?>)
+                                        <i class="bi bi-person me-1"></i>
+                                        <?= htmlspecialchars($session['counselor_name']) ?>
+                                        <!-- ✅ FIX 8 — counselor_role might be category now — ?? fallback -->
+                                        (<?= ucfirst(str_replace('_', ' ', $session['counselor_role'] ?? $session['counselor_category'] ?? 'Counselor')) ?>)
                                     </p>
                                     
                                     <?php if ($session['notes']): ?>
@@ -499,13 +595,17 @@ require_once __DIR__ . '/../includes/header.php';
                                         <input type="hidden" name="session_id" value="<?= $session['id'] ?>">
                                         <div class="row">
                                             <div class="col-md-6 mb-2">
-                                                <textarea name="session_notes" class="form-control form-control-sm" rows="2" placeholder="Session notes..." required></textarea>
+                                                <textarea name="session_notes" class="form-control form-control-sm" rows="2" 
+                                                          placeholder="Session notes..." required></textarea>
                                             </div>
                                             <div class="col-md-4 mb-2">
-                                                <input type="text" name="session_recommendations" class="form-control form-control-sm mb-1" placeholder="Recommendations...">
+                                                <input type="text" name="session_recommendations" 
+                                                       class="form-control form-control-sm mb-1" placeholder="Recommendations...">
                                                 <div class="d-flex gap-2">
-                                                    <input type="number" name="mood_rating" class="form-control form-control-sm" placeholder="Mood 1-10" min="1" max="10">
-                                                    <input type="date" name="next_session_date" class="form-control form-control-sm" min="<?= date('Y-m-d') ?>">
+                                                    <input type="number" name="mood_rating" class="form-control form-control-sm" 
+                                                           placeholder="Mood 1-10" min="1" max="10">
+                                                    <input type="date" name="next_session_date" 
+                                                           class="form-control form-control-sm" min="<?= date('Y-m-d') ?>">
                                                 </div>
                                             </div>
                                             <div class="col-md-2 mb-2">
@@ -543,12 +643,14 @@ require_once __DIR__ . '/../includes/header.php';
                                         </div>
                                         <div class="col-md-8 mb-3">
                                             <label class="form-label">Program Name *</label>
-                                            <input type="text" name="program_name" class="form-control" placeholder="e.g., Emotional Resilience Training" required>
+                                            <input type="text" name="program_name" class="form-control" 
+                                                   placeholder="e.g., Emotional Resilience Training" required>
                                         </div>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label">Description</label>
-                                        <textarea name="program_description" class="form-control" rows="2" placeholder="Describe the program and its goals..."></textarea>
+                                        <textarea name="program_description" class="form-control" rows="2" 
+                                                  placeholder="Describe the program and its goals..."></textarea>
                                     </div>
                                     <div class="row">
                                         <div class="col-md-4 mb-3">
@@ -618,7 +720,8 @@ require_once __DIR__ . '/../includes/header.php';
                                                 </select>
                                             </div>
                                             <div class="col-md-6">
-                                                <input type="text" name="progress_notes" class="form-control form-control-sm" placeholder="Progress notes...">
+                                                <input type="text" name="progress_notes" 
+                                                       class="form-control form-control-sm" placeholder="Progress notes...">
                                             </div>
                                             <div class="col-md-3">
                                                 <button type="submit" class="btn btn-outline-primary btn-sm w-100">Update</button>
@@ -631,27 +734,8 @@ require_once __DIR__ . '/../includes/header.php';
                             </div>
                         </div>
                         <?php endif; ?>
-                        <?php endif; ?>
 
-                        <!-- Add Notes -->
-                        <div class="card mb-4">
-                            <div class="card-header">
-                                <i class="bi bi-journal-plus me-2"></i>Add Progress Notes
-                            </div>
-                            <div class="card-body">
-                                <form method="POST">
-                                    <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
-                                    <input type="hidden" name="action" value="add_notes">
-                                    
-                                    <div class="mb-3">
-                                        <textarea name="notes" class="form-control" rows="3" placeholder="Enter progress notes..." required></textarea>
-                                    </div>
-                                    <button type="submit" class="btn btn-outline-primary">
-                                        <i class="bi bi-plus-lg me-2"></i>Add Notes
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
+                        <?php endif; ?>
 
                         <!-- Progress History -->
                         <div class="card">
@@ -683,10 +767,12 @@ require_once __DIR__ . '/../includes/header.php';
                                 <?php endif; ?>
                             </div>
                         </div>
+
                     </div>
 
-                    <!-- Sidebar -->
+                    <!-- Right Sidebar Info Cards -->
                     <div class="col-md-4 col-lg-4">
+
                         <!-- User Info -->
                         <div class="card mb-4">
                             <div class="card-header bg-primary text-white">
@@ -726,7 +812,16 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="card-body">
                                 <?php if ($case['team_member_id']): ?>
                                     <p><strong>Name:</strong> <?= htmlspecialchars($case['team_member_name']) ?></p>
-                                    <p class="mb-0"><strong>Role:</strong> <?= ucfirst(str_replace('_', ' ', $case['team_member_role'])) ?></p>
+                                    <!-- ✅ FIX 9 — team_member_role alias now points to category — display same -->
+                                    <p><strong>Category:</strong> <?= ucfirst(str_replace('_', ' ', $case['team_member_role'])) ?></p>
+                                    
+                                    <!-- Chat Button -->
+                                    <div class="mt-3">
+                                        <a href="<?= url('/ngo/chat-reply.php?case_id=' . $caseId) ?>" 
+                                           class="btn btn-primary w-100 rounded-pill shadow-sm">
+                                            💬 Message Team Member
+                                        </a>
+                                    </div>
                                 <?php else: ?>
                                     <p class="text-muted mb-0">No team member assigned yet.</p>
                                 <?php endif; ?>
@@ -741,16 +836,18 @@ require_once __DIR__ . '/../includes/header.php';
                             <div class="card-body">
                                 <?php if ($case['counselor_id']): ?>
                                     <p><strong>Name:</strong> <?= htmlspecialchars($case['counselor_name']) ?></p>
-                                    <p><strong>Role:</strong> <?= ucfirst(str_replace('_', ' ', $case['counselor_role'])) ?></p>
+                                    <!-- ✅ FIX 10 — counselor_role alias now points to category — display same -->
+                                    <p><strong>Category:</strong> <?= ucfirst(str_replace('_', ' ', $case['counselor_role'])) ?></p>
                                     <p class="mb-0">
                                         <strong>Sessions:</strong> <?= count($sessions) ?> total,
                                         <?= count(array_filter($sessions, fn($s) => $s['status'] === 'completed')) ?> completed
                                     </p>
                                 <?php else: ?>
-                                    <p class="text-muted mb-0">No counselor assigned yet. Team member can recommend one.</p>
+                                    <p class="text-muted mb-0">No counselor assigned yet.</p>
                                 <?php endif; ?>
                             </div>
                         </div>
+
                     </div>
                 </div>
             </div>

@@ -57,17 +57,20 @@ $flashMessage = getFlashMessage();
                 </ul>
                 <ul class="navbar-nav" role="menubar" aria-label="Account links">
                     <?php if (isLoggedIn()): ?>
-                        <?php $userType = getUserType(); ?>
+                        <?php 
+                        $userType = getUserType(); 
+                        $userFolder = $userType === 'team_member' ? 'team' : $userType;
+                        ?>
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                 <i class="bi bi-person-circle me-1"></i>
                                 <?= $_SESSION['user_data']['name'] ?? 'Account' ?>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <li><a class="dropdown-item" href="<?= url('/' . $userType . '/dashboard.php') ?>">
+                                <li><a class="dropdown-item" href="<?= url('/' . $userFolder . '/dashboard.php') ?>">
                                     <i class="bi bi-speedometer2 me-2"></i>Dashboard
                                 </a></li>
-                                <li><a class="dropdown-item" href="<?= url('/' . $userType . '/profile.php') ?>">
+                                <li><a class="dropdown-item" href="<?= url('/' . $userFolder . '/profile.php') ?>">
                                     <i class="bi bi-person me-2"></i>Profile
                                 </a></li>
                                 <li><hr class="dropdown-divider"></li>
@@ -76,8 +79,75 @@ $flashMessage = getFlashMessage();
                                 </a></li>
                             </ul>
                         </li>
+
+                        <!-- Notification Bell — only for logged-in users -->
+                        <?php
+                        $notifUserType = $userType === 'team' ? 'team_member' : $userType;
+                        $notifUserId   = getCurrentUserId();
+                        $notifications = getNotifications($notifUserType, $notifUserId, 8);
+                        $unreadCount   = count(array_filter($notifications, fn($n) => !$n['is_read']));
+                        ?>
+                        <li class="nav-item dropdown ms-2">
+                            <a class="nav-link position-relative notif-bell" href="#" id="notifDropdown"
+                               role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"
+                               title="Notifications">
+                                <i class="bi bi-bell-fill fs-5"></i>
+                                <?php if ($unreadCount > 0): ?>
+                                    <span class="notif-badge"><?= $unreadCount > 9 ? '9+' : $unreadCount ?></span>
+                                <?php endif; ?>
+                            </a>
+                            <div class="dropdown-menu dropdown-menu-end notif-dropdown p-0" aria-labelledby="notifDropdown">
+                                <!-- Header -->
+                                <div class="notif-header d-flex align-items-center justify-content-between px-3 py-2">
+                                    <span class="fw-semibold">Notifications</span>
+                                    <?php if ($unreadCount > 0): ?>
+                                        <span class="badge bg-primary rounded-pill"><?= $unreadCount ?> new</span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="notif-scroll">
+                                <?php if (empty($notifications)): ?>
+                                    <div class="notif-empty">
+                                        <i class="bi bi-bell-slash fs-3 text-muted d-block mb-2"></i>
+                                        <span class="text-muted small">You're all caught up!</span>
+                                    </div>
+                                <?php else: ?>
+                                    <?php foreach ($notifications as $n): ?>
+                                        <div class="notif-item <?= $n['is_read'] ? '' : 'unread' ?>">
+                                            <div class="notif-icon notif-icon-<?= $n['type'] ?>">
+                                                <i class="bi bi-<?= match($n['type']) {
+                                                    'success' => 'check-circle-fill',
+                                                    'danger'  => 'exclamation-triangle-fill',
+                                                    'warning' => 'exclamation-circle-fill',
+                                                    default   => 'info-circle-fill'
+                                                } ?>"></i>
+                                            </div>
+                                            <div class="notif-content">
+                                                <p class="notif-title"><?= htmlspecialchars($n['title']) ?></p>
+                                                <p class="notif-msg"><?= $n['message'] /* HTML allowed for links */ ?></p>
+                                                <p class="notif-time">
+                                                    <i class="bi bi-clock me-1"></i>
+                                                    <?= date('d M, h:i A', strtotime($n['created_at'])) ?>
+                                                </p>
+                                            </div>
+                                        </div>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                                </div>
+                                <!-- Footer -->
+                                <div class="notif-footer text-center py-2">
+                                    <form method="POST" action="<?= url('/' . $userFolder . '/dashboard.php') ?>" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
+                                        <input type="hidden" name="action" value="mark_all_read">
+                                        <button type="submit" class="btn btn-link btn-sm text-muted p-0">
+                                            <i class="bi bi-check2-all me-1"></i>Mark all as read
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </li>
+
                     <?php else: ?>
-                        <li class="nav-item dropdown">
+                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle" href="#" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                                 Login
                             </a>
@@ -87,6 +157,9 @@ $flashMessage = getFlashMessage();
                                 </a></li>
                                 <li><a class="dropdown-item" href="<?= url('/ngo/login.php') ?>">
                                     <i class="bi bi-building me-2"></i>NGO Login
+                                </a></li>
+                                <li><a class="dropdown-item" href="<?= url('/team/login.php') ?>">
+                                    <i class="bi bi-person-badge me-2"></i>Team Member Login
                                 </a></li>
                                 <li><a class="dropdown-item" href="<?= url('/admin/login.php') ?>">
                                     <i class="bi bi-shield-lock me-2"></i>Admin Login
@@ -103,6 +176,9 @@ $flashMessage = getFlashMessage();
                                 </a></li>
                                 <li><a class="dropdown-item" href="<?= url('/ngo/register.php') ?>">
                                     <i class="bi bi-building-add me-2"></i>NGO Registration
+                                </a></li>
+                                <li><a class="dropdown-item" href="<?= url('/team/register.php') ?>">
+                                    <i class="bi bi-person-badge me-2"></i>Team Member Registration
                                 </a></li>
                             </ul>
                         </li>

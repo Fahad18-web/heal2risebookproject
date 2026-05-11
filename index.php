@@ -25,16 +25,18 @@ require_once __DIR__ . '/includes/header.php';
                     professionals who walk beside you on your journey to renewal.
                 </p>
                 <div class="d-flex gap-3 flex-wrap">
-                    <a href="<?= url('/user/register.php') ?>" class="btn btn-warning btn-lg">
-                        <i class="bi bi-heart me-2"></i>Get Support Now
+                    <a href="<?= url('/user/register.php') ?>" class="btn btn-warning btn-lg d-inline-flex align-items-center">
+                        <img src="<?= url('/assets/imgs/flaticon-medical-heart.png') ?>" alt="Support" width="24" height="24" class="me-2"> 
+                        Get Support Now
                     </a>
-                    <a href="<?= url('/ngo/register.php') ?>" class="btn btn-outline-light btn-lg">
-                        <i class="bi bi-building me-2"></i>Register as NGO
+                    <a href="<?= url('/ngo/register.php') ?>" class="btn btn-outline-light btn-lg d-inline-flex align-items-center">
+                        <img src="<?= url('/assets/imgs/flaticon-medical-hospital.png') ?>" alt="NGO" width="24" height="24" class="me-2">
+                        Register as NGO
                     </a>
                 </div>
             </div>
-            <div class="col-lg-6 d-none d-lg-block text-center">
-                <img src="<?= url('/assets/imgs/h2R hero section image.png') ?>" alt="Mental health support illustration" class="img-fluid hero-image">
+            <div class="col-lg-6 text-center mt-5 mt-lg-0">
+                <img src="<?= url('/assets/imgs/hero-image.png') ?>" alt="Mental health support illustration" class="img-fluid hero-image">
             </div>
         </div>
     </div>
@@ -52,7 +54,7 @@ require_once __DIR__ . '/includes/header.php';
             <div class="col-md-6 col-lg-3">
                 <div class="card feature-card h-100 fade-in">
                     <div class="icon-box">
-                        <i class="bi bi-person-plus"></i>
+                        <img src="<?= url('/assets/imgs/flaticon-medical-patient.png') ?>" alt="Register" width="40" height="40">
                     </div>
                     <h4>1. Register Securely</h4>
                     <p class="text-muted">Create your confidential account. Your privacy is our top priority.</p>
@@ -61,7 +63,7 @@ require_once __DIR__ . '/includes/header.php';
             <div class="col-md-6 col-lg-3">
                 <div class="card feature-card h-100 fade-in" style="animation-delay: 0.1s">
                     <div class="icon-box">
-                        <i class="bi bi-building-check"></i>
+                        <img src="<?= url('/assets/imgs/flaticon-medical-doctor.png') ?>" alt="Match" width="40" height="40">
                     </div>
                     <h4>2. Get Matched</h4>
                     <p class="text-muted">Our system connects you with the most suitable NGO based on your needs.</p>
@@ -70,7 +72,7 @@ require_once __DIR__ . '/includes/header.php';
             <div class="col-md-6 col-lg-3">
                 <div class="card feature-card h-100 fade-in" style="animation-delay: 0.2s">
                     <div class="icon-box">
-                        <i class="bi bi-chat-heart"></i>
+                        <img src="<?= url('/assets/imgs/flaticon-medical-chat.png') ?>" alt="Support" width="40" height="40">
                     </div>
                     <h4>3. Receive Support</h4>
                     <p class="text-muted">Professional counselors and psychiatrists provide regular guidance and therapy.</p>
@@ -79,7 +81,7 @@ require_once __DIR__ . '/includes/header.php';
             <div class="col-md-6 col-lg-3">
                 <div class="card feature-card h-100 fade-in" style="animation-delay: 0.3s">
                     <div class="icon-box">
-                        <i class="bi bi-trophy"></i>
+                        <img src="<?= url('/assets/imgs/flaticon-medical-recovery.png') ?>" alt="Recover" width="40" height="40">
                     </div>
                     <h4>4. Rise Again</h4>
                     <p class="text-muted">Develop skills, gain confidence, and step into an empowered new life.</p>
@@ -178,11 +180,13 @@ require_once __DIR__ . '/includes/header.php';
             <h2 class="fw-bold mb-3">Ready to Begin Your Healing Journey?</h2>
             <p class="text-muted mb-4">Take the first step today. Our caring team is here to support you every step of the way.</p>
             <div class="d-flex justify-content-center gap-3 flex-wrap">
-                <a href="<?= url('/user/register.php') ?>" class="btn btn-primary btn-lg">
-                    <i class="bi bi-heart-pulse me-2"></i>Start Now
+                <a href="<?= url('/user/register.php') ?>" class="btn btn-primary btn-lg d-inline-flex align-items-center">
+                    <img src="<?= url('/assets/imgs/flaticon-medical-pulse.png') ?>" alt="Start" width="24" height="24" class="me-2">
+                    Start Now
                 </a>
-                <a href="<?= url('/contact.php') ?>" class="btn btn-outline-secondary btn-lg">
-                    <i class="bi bi-telephone me-2"></i>Contact Us
+                <a href="<?= url('/contact.php') ?>" class="btn btn-outline-secondary btn-lg d-inline-flex align-items-center">
+                    <img src="<?= url('/assets/imgs/flaticon-medical-call.png') ?>" alt="Contact" width="24" height="24" class="me-2">
+                    Contact Us
                 </a>
             </div>
         </div>

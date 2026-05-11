@@ -18,9 +18,10 @@ $stmt->execute([$ngoId]);
 $ngo = $stmt->fetch();
 
 // Get assigned cases
+// ✅ FIX 1 — tm.role removed (column still exists but category is correct now)
 $stmt = $db->prepare("
     SELECT c.*, u.full_name as user_name, u.issue_category as user_issue,
-           tm.full_name as team_member_name, tm.role as team_member_role
+           tm.full_name as team_member_name, tm.category as team_member_category
     FROM cases c
     LEFT JOIN users u ON c.user_id = u.id
     LEFT JOIN team_members tm ON c.team_member_id = tm.id
@@ -31,7 +32,14 @@ $stmt->execute([$ngoId]);
 $cases = $stmt->fetchAll();
 
 // Get team members
-$stmt = $db->prepare("SELECT * FROM team_members WHERE ngo_id = ? ORDER BY full_name");
+// ✅ FIX 2 — tm.status added to SELECT (needed for badge display below)
+$stmt = $db->prepare("
+    SELECT DISTINCT tm.id, tm.full_name, tm.category, tm.email, tm.status
+    FROM team_members tm
+    JOIN cases c ON c.team_member_id = tm.id
+    WHERE c.ngo_id = ?
+    ORDER BY tm.full_name
+");
 $stmt->execute([$ngoId]);
 $teamMembers = $stmt->fetchAll();
 
@@ -99,6 +107,7 @@ require_once __DIR__ . '/../includes/header.php';
             <!-- Main Content -->
             <div class="col-md-8 col-lg-9">
                 <h2 class="page-title-soft">NGO Operations Dashboard</h2>
+
                 <!-- Welcome Card -->
                 <div class="card mb-4">
                     <div class="card-body">
@@ -109,11 +118,8 @@ require_once __DIR__ . '/../includes/header.php';
                                     Capacity: <?= $ngo['current_cases'] ?>/<?= $ngo['capacity'] ?> cases
                                 </p>
                             </div>
-                            <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                                <a href="<?= url('/ngo/team.php?action=add') ?>" class="btn btn-primary">
-                                    <i class="bi bi-person-plus me-2"></i>Add Team Member
-                                </a>
-                            </div>
+                            <!-- ✅ FIX 3 — "Add Team Member" button removed -->
+                            <!-- NGO ab team members add nahi kar sakti — sirf Admin karta hai -->
                         </div>
                     </div>
                 </div>
@@ -214,9 +220,7 @@ require_once __DIR__ . '/../includes/header.php';
                                                     <?php if ($case['team_member_name']): ?>
                                                         <?= htmlspecialchars($case['team_member_name']) ?>
                                                     <?php else: ?>
-                                                        <a href="<?= url('/ngo/assign-team.php?case_id=' . $case['id']) ?>" class="btn btn-sm btn-outline-primary">
-                                                            Assign
-                                                        </a>
+                                                        <span class="text-muted fst-italic">Not Assigned</span>
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
@@ -228,6 +232,11 @@ require_once __DIR__ . '/../includes/header.php';
                                                     <a href="<?= url('/ngo/case-details.php?id=' . $case['id']) ?>" class="btn btn-sm btn-outline-primary">
                                                         View
                                                     </a>
+                                                    <?php if ($case['team_member_id']): ?>
+                                                        <a href="<?= url('/ngo/chat-reply.php?case_id=' . $case['id']) ?>" class="btn btn-sm btn-outline-info ms-1" title="Chat">
+                                                            <i class="bi bi-chat-dots"></i>
+                                                        </a>
+                                                    <?php endif; ?>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -241,15 +250,16 @@ require_once __DIR__ . '/../includes/header.php';
                 <!-- Team Members Overview -->
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <span><i class="bi bi-people-fill me-2"></i>Team Members</span>
-                        <a href="<?= url('/ngo/team.php') ?>" class="btn btn-sm btn-outline-primary">Manage Team</a>
+                        <span><i class="bi bi-people-fill me-2"></i>Team Members On Our Cases</span>
+                        <a href="<?= url('/ngo/team.php') ?>" class="btn btn-sm btn-outline-primary">View All</a>
                     </div>
                     <div class="card-body">
                         <?php if (empty($teamMembers)): ?>
                             <div class="text-center py-4">
-                                <i class="bi bi-person-plus display-4 text-muted"></i>
-                                <p class="text-muted mt-3">No team members yet.</p>
-                                <a href="<?= url('/ngo/team.php?action=add') ?>" class="btn btn-primary">Add Team Member</a>
+                                <i class="bi bi-person-search display-4 text-muted"></i>
+                                <p class="text-muted mt-3">No team members assigned to your cases yet.</p>
+                                <!-- ✅ FIX 4 — "Add Team Member" button removed -->
+                                <!-- Admin manages team members — NGO cannot add them -->
                             </div>
                         <?php else: ?>
                             <div class="row">
@@ -261,12 +271,14 @@ require_once __DIR__ . '/../includes/header.php';
                                                  class="rounded-circle me-3" width="50" height="50">
                                             <div>
                                                 <h6 class="mb-1"><?= htmlspecialchars($member['full_name']) ?></h6>
+                                                <!-- ✅ FIX 5 — role → category, cases_assigned removed -->
                                                 <small class="text-muted">
-                                                    <?= ucfirst($member['role']) ?> • <?= $member['cases_assigned'] ?> cases
+                                                    <?= ucfirst(str_replace('_', ' ', $member['category'])) ?>
                                                 </small>
                                             </div>
-                                            <span class="badge bg-<?= $member['is_available'] ? 'success' : 'secondary' ?> ms-auto">
-                                                <?= $member['is_available'] ? 'Available' : 'Busy' ?>
+                                            <!-- ✅ FIX 6 — is_available → status column use ho raha hai -->
+                                            <span class="badge bg-<?= $member['status'] === 'active' ? 'success' : 'secondary' ?> ms-auto">
+                                                <?= $member['status'] === 'active' ? 'Active' : 'Inactive' ?>
                                             </span>
                                         </div>
                                     </div>
@@ -275,6 +287,7 @@ require_once __DIR__ . '/../includes/header.php';
                         <?php endif; ?>
                     </div>
                 </div>
+
             </div>
         </div>
     </div>

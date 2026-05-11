@@ -28,8 +28,15 @@ if (!$ngo) {
     exit;
 }
 
-// Get NGO's team members
-$stmt = $db->prepare("SELECT * FROM team_members WHERE ngo_id = ? ORDER BY full_name");
+// ✅ FIXED — ngo_id removed from team_members query
+// Team members ab cases table ke zariye dhunde jaate hain
+$stmt = $db->prepare("
+    SELECT DISTINCT tm.id, tm.full_name, tm.category, tm.email, tm.status
+    FROM team_members tm
+    JOIN cases c ON c.team_member_id = tm.id
+    WHERE c.ngo_id = ?
+    ORDER BY tm.full_name
+");
 $stmt->execute([$ngoId]);
 $teamMembers = $stmt->fetchAll();
 
@@ -105,6 +112,14 @@ require_once __DIR__ . '/../includes/header.php';
                         </a>
                         <a class="nav-link" href="<?= url('/admin/cases.php') ?>">
                             <i class="bi bi-folder"></i>Cases
+                        </a>
+                        <!-- ✅ ADDED — Team Members link -->
+                        <a class="nav-link" href="<?= url('/admin/create-team-member.php') ?>">
+                            <i class="bi bi-people-fill"></i>Team Members
+                        </a>
+                        <!-- ✅ ADDED — Messages / Chat link -->
+                        <a class="nav-link" href="<?= url('/admin/chat.php') ?>">
+                            <i class="bi bi-chat-dots"></i>Messages
                         </a>
                         <hr>
                         <a class="nav-link text-danger" href="<?= url('/logout.php') ?>">
@@ -224,20 +239,21 @@ require_once __DIR__ . '/../includes/header.php';
                         <!-- Team Members -->
                         <div class="card mb-4">
                             <div class="card-header">
-                                <i class="bi bi-people me-2"></i>Team Members (<?= count($teamMembers) ?>)
+                                <i class="bi bi-people me-2"></i>Team Members Assigned to This NGO's Cases (<?= count($teamMembers) ?>)
                             </div>
                             <div class="card-body">
                                 <?php if (empty($teamMembers)): ?>
-                                    <p class="text-muted mb-0">No team members registered.</p>
+                                    <p class="text-muted mb-0">No team members assigned to this NGO's cases yet.</p>
                                 <?php else: ?>
                                     <div class="table-responsive">
                                         <table class="table table-sm">
                                             <thead>
                                                 <tr>
                                                     <th>Name</th>
-                                                    <th>Role</th>
+                                                    <!-- ✅ FIXED — "Role" → "Category" -->
+                                                    <th>Category</th>
                                                     <th>Email</th>
-                                                    <th>Cases</th>
+                                                    <!-- ✅ FIXED — "Cases" column removed (cases_assigned/max_cases don't exist) -->
                                                     <th>Status</th>
                                                 </tr>
                                             </thead>
@@ -245,12 +261,14 @@ require_once __DIR__ . '/../includes/header.php';
                                                 <?php foreach ($teamMembers as $member): ?>
                                                     <tr>
                                                         <td><?= htmlspecialchars($member['full_name']) ?></td>
-                                                        <td><?= ucfirst(str_replace('_', ' ', $member['role'])) ?></td>
+                                                        <!-- ✅ ALREADY CORRECT — category use ho raha hai -->
+                                                        <td><?= ucfirst(str_replace('_', ' ', $member['category'])) ?></td>
                                                         <td><?= htmlspecialchars($member['email']) ?></td>
-                                                        <td><?= $member['cases_assigned'] ?>/<?= $member['max_cases'] ?></td>
+                                                        <!-- ✅ FIXED — cases_assigned/max_cases td removed -->
+                                                        <!-- ✅ FIXED — is_available removed, status column use ho raha hai -->
                                                         <td>
-                                                            <span class="badge bg-<?= $member['is_available'] ? 'success' : 'secondary' ?>">
-                                                                <?= $member['is_available'] ? 'Available' : 'Busy' ?>
+                                                            <span class="badge bg-<?= $member['status'] === 'active' ? 'success' : 'secondary' ?>">
+                                                                <?= ucfirst($member['status']) ?>
                                                             </span>
                                                         </td>
                                                     </tr>

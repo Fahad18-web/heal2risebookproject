@@ -8,7 +8,11 @@ if (session_status() === PHP_SESSION_NONE) {
     // Secure session configuration
     ini_set('session.cookie_httponly', 1);
     ini_set('session.use_only_cookies', 1);
-    ini_set('session.cookie_secure', 0); // Set to 1 in production with HTTPS
+    
+    // Dynamically set cookie_secure based on HTTPS
+    $isHttps = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') || 
+               (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+    ini_set('session.cookie_secure', $isHttps ? 1 : 0);
     
     session_start();
 }
@@ -28,9 +32,15 @@ function isLoggedIn($type = null) {
     if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
         return false;
     }
-    if ($type !== null && (!isset($_SESSION['user_type']) || $_SESSION['user_type'] !== $type)) {
-        return false;
+    
+    $validTypes = ['user', 'ngo', 'admin', 'team_member'];
+    
+    if ($type !== null) {
+        if (!in_array($_SESSION['user_type'], $validTypes) || $_SESSION['user_type'] !== $type) {
+            return false;
+        }
     }
+    
     return true;
 }
 
@@ -40,7 +50,13 @@ function isLoggedIn($type = null) {
 function requireLogin($type = null) {
     if (!isLoggedIn($type)) {
         $base = defined('BASE_URL') ? BASE_URL : '';
-        $redirect = $type ? "{$base}/{$type}/login.php" : "{$base}/index.php";
+        
+        if ($type === 'team_member') {
+            $redirect = "{$base}/team/login.php";
+        } else {
+            $redirect = $type ? "{$base}/{$type}/login.php" : "{$base}/index.php";
+        }
+        
         header("Location: $redirect");
         exit;
     }

@@ -46,6 +46,38 @@ function validatePhone($phone) {
 }
 
 /**
+ * Calculate time passed since a datetime
+ */
+function timeAgo($datetime) {
+    $time_ago = strtotime($datetime);
+    $current_time = time();
+    $time_difference = $current_time - $time_ago;
+    $seconds = $time_difference;
+    $minutes      = round($seconds / 60);           // value 60 is seconds
+    $hours        = round($seconds / 3600);         // value 3600 is 60 minutes * 60 sec
+    $days         = round($seconds / 86400);        // value 86400 is 24 hours * 60 * 60;
+    $weeks        = round($seconds / 604800);       // value 604800 is 7 days * 24 hours * 60 * 60;
+    $months       = round($seconds / 2629440);      // value 2629440 is ((365+365+365+365+366)/5/12) * 24 * 60 * 60
+    $years        = round($seconds / 31553280);     // value 31553280 is ((365+365+365+365+366)/5) * 24 * 60 * 60
+    
+    if ($seconds <= 60) {
+        return "Just now";
+    } else if ($minutes <= 60) {
+        return "$minutes min ago";
+    } else if ($hours <= 24) {
+        return "$hours hrs ago";
+    } else if ($days <= 7) {
+        return "$days days ago";
+    } else if ($weeks <= 4.3) {
+        return "$weeks weeks ago";
+    } else if ($months <= 12) {
+        return "$months months ago";
+    } else {
+        return "$years years ago";
+    }
+}
+
+/**
  * Validate password strength
  */
 function validatePassword($password) {
@@ -92,21 +124,6 @@ function generateDonationNumber() {
  */
 function formatDate($date, $format = 'd M Y') {
     return date($format, strtotime($date));
-}
-
-/**
- * Get time ago string
- */
-function timeAgo($datetime) {
-    $time = strtotime($datetime);
-    $diff = time() - $time;
-    
-    if ($diff < 60) return 'Just now';
-    if ($diff < 3600) return floor($diff / 60) . ' minutes ago';
-    if ($diff < 86400) return floor($diff / 3600) . ' hours ago';
-    if ($diff < 604800) return floor($diff / 86400) . ' days ago';
-    
-    return formatDate($datetime);
 }
 
 /**
@@ -201,32 +218,242 @@ function findSuitableNGO($issueCategory, $userCity = null) {
 }
 
 /**
- * Find available team member from NGO
+ * Request satisfaction check for 100% progress
  */
-function findAvailableTeamMember($ngoId, $issueCategory = null) {
+function requestSatisfactionCheck($caseId, $teamMemberId) {
     $db = getDB();
     
-    $query = "SELECT * FROM team_members 
-              WHERE ngo_id = ? 
-              AND is_available = 1 
-              AND status = 'active' 
-              AND cases_assigned < max_cases";
-    
-    $params = [$ngoId];
-    
-    // Prefer counselors/psychiatrists for mental health issues
-    if (in_array($issueCategory, ['depression', 'hopelessness'])) {
-        $query .= " ORDER BY CASE WHEN role IN ('psychiatrist', 'counselor') THEN 0 ELSE 1 END, cases_assigned ASC";
-    } else {
-        $query .= " ORDER BY CASE WHEN role = 'social_worker' THEN 0 ELSE 1 END, cases_assigned ASC";
+    // Check if request already exists
+    $stmt = $db->prepare("SELECT id FROM satisfaction_requests WHERE case_id = ?");
+    $stmt->execute([$caseId]);
+    if ($stmt->fetch()) {
+        return ['success' => false, 'error' => 'Satisfaction request already exists for this case'];
     }
     
-    $query .= " LIMIT 1";
+    // Insert request
+    $stmt = $db->prepare("INSERT INTO satisfaction_requests (case_id, requested_by_team_member_id) VALUES (?, ?)");
+    if ($stmt->execute([$caseId, $teamMemberId])) {
+        // Get case to find user and NGO
+        $stmtCase = $db->prepare("SELECT user_id, ngo_id FROM cases WHERE id = ?");
+        $stmtCase->execute([$caseId]);
+        $case = $stmtCase->fetch();
+        
+        if ($case) {
+            sendNotification('user', $case['user_id'], 'Case Progress at 100%', 'Your case progress is 100%. Are you satisfied with the support received?', 'info');
+            sendNotification('ngo', $case['ngo_id'], 'Case Progress at 100%', "Case #{$caseId} has reached 100% progress. Please confirm satisfaction.", 'info');
+        }
+        return ['success' => true];
+    }
+    
+    return ['success' => false, 'error' => 'Failed to create satisfaction request'];
+}
+
+/**
+ * Check if both user and NGO are satisfied
+ */
+function checkBothSatisfied($caseId) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT user_response, ngo_response FROM satisfaction_requests WHERE case_id = ?");
+    $stmt->execute([$caseId]);
+    $request = $stmt->fetch();
+    
+    if ($request && $request['user_response'] === 'satisfied' && $request['ngo_response'] === 'satisfied') {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Notify admin to close the case
+ */
+function notifyAdminForClosure($caseId, $teamMemberId) {
+    $db = getDB();
+    $stmt = $db->prepare("UPDATE satisfaction_requests SET closure_request_sent = 1 WHERE case_id = ?");
+    if ($stmt->execute([$caseId])) {
+        // Notify ALL admins — never assume ID=1 is the only admin
+        $admins = $db->query("SELECT id FROM admins")->fetchAll();
+        foreach ($admins as $admin) {
+            sendNotification(
+                'admin',
+                $admin['id'],
+                'Case Closure Request',
+                "Case #{$caseId} — Both user and NGO are satisfied. Team member requesting case closure.",
+                'warning'
+            );
+        }
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Send a chat message
+ */
+function sendChatMessage($senderType, $senderId, $receiverType, $receiverId, $message, $caseId = null) {
+    $db = getDB();
+
+    // Store the message as-is (plain text). Callers must NOT pre-sanitize.
+    // htmlspecialchars is applied only at display time to avoid double-encoding.
+    $cleanMessage = trim($message);
+
+    if (empty($cleanMessage)) {
+        return ['success' => false, 'error' => 'Message cannot be empty.'];
+    }
+
+    $stmt = $db->prepare("INSERT INTO messages (sender_type, sender_id, receiver_type, receiver_id, message, case_id) VALUES (?, ?, ?, ?, ?, ?)");
+    if ($stmt->execute([$senderType, $senderId, $receiverType, $receiverId, $cleanMessage, $caseId])) {
+        $messageId = $db->lastInsertId();
+
+        // Build a direct link to the chat page based on receiver type
+        $chatLinks = [
+            'user'        => '/user/chat-reply.php?with=' . $senderType . '&id=' . $senderId,
+            'ngo'         => '/ngo/chat-reply.php?with=' . $senderType . '&id=' . $senderId,
+            'team_member' => '/team/chat-thread.php?with=' . $senderType . '&id=' . $senderId,
+            'admin'       => '/admin/chat.php?with=' . $senderType . '&id=' . $senderId,
+        ];
+        $chatLink = isset($chatLinks[$receiverType]) ? url($chatLinks[$receiverType]) : '#';
+
+        sendNotification(
+            $receiverType,
+            $receiverId,
+            'New Message',
+            'You have a new message. <a href="' . $chatLink . '" class="alert-link">Click to view &rarr;</a>',
+            'info'
+        );
+
+        return ['success' => true, 'message_id' => $messageId];
+    }
+    return ['success' => false, 'error' => 'Failed to send message'];
+}
+
+/**
+ * Get unread message count
+ */
+function getUnreadMessageCount($userType, $userId) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT COUNT(*) FROM messages WHERE receiver_type = ? AND receiver_id = ? AND is_read = 0");
+    $stmt->execute([$userType, $userId]);
+    return (int)$stmt->fetchColumn();
+}
+
+/**
+ * Get chat thread between two users
+ */
+function getChatThread($type1, $id1, $type2, $id2, $caseId = null) {
+    $db = getDB();
+    $query = "SELECT * FROM messages 
+              WHERE ((sender_type = ? AND sender_id = ? AND receiver_type = ? AND receiver_id = ?) 
+              OR (sender_type = ? AND sender_id = ? AND receiver_type = ? AND receiver_id = ?))";
+    $params = [$type1, $id1, $type2, $id2, $type2, $id2, $type1, $id1];
+    
+    if ($caseId !== null) {
+        $query .= " AND case_id = ?";
+        $params[] = $caseId;
+    }
+    
+    $query .= " ORDER BY created_at ASC";
     
     $stmt = $db->prepare($query);
     $stmt->execute($params);
-    
-    return $stmt->fetch();
+    return $stmt->fetchAll();
+}
+
+/**
+ * Get available team member by category
+ */
+/**
+ * Internal helper — find least-loaded active member in a given category.
+ * Workload is counted in real-time from the cases table (not a stored counter)
+ * so it is always accurate even if cases are closed/cancelled.
+ * Returns the member row (with a current_load key) or null if none available.
+ */
+function findMemberByCategory($db, $category) {
+    $stmt = $db->prepare("
+        SELECT tm.*,
+               COUNT(c.id)                    AS current_load,
+               COALESCE(tm.max_cases, 10)     AS effective_max
+        FROM   team_members tm
+        LEFT JOIN cases c
+               ON  c.team_member_id = tm.id
+               AND c.status NOT IN ('closed', 'cancelled')
+        WHERE  tm.category = ?
+          AND  tm.status   = 'active'
+        GROUP  BY tm.id
+        HAVING current_load < COALESCE(tm.max_cases, 10)
+        ORDER  BY current_load ASC
+        LIMIT  1
+    ");
+    $stmt->execute([$category]);
+    $row = $stmt->fetch();
+    return $row ?: null;
+}
+
+/**
+ * Get available team member by category (public alias of findMemberByCategory).
+ * Replaces the old version that had no workload check.
+ */
+function getAvailableTeamMemberByCategory($category) {
+    return findMemberByCategory(getDB(), $category);
+}
+
+/**
+ * Find the best available team member for a given issue category.
+ *
+ * Matching order:
+ *   1. Specialist for the exact issue category (e.g. social_worker for family_issues)
+ *   2. mental_health_counselor as first generic fallback
+ *   3. Any active member with remaining capacity — least loaded first
+ *   4. null — no one is available right now
+ */
+function findAvailableTeamMember($issueCategory) {
+    $db = getDB();
+
+    // Maps every user-facing issue category to a team member category.
+    // 'other' maps to mental_health_counselor — most versatile role.
+    $categoryMap = [
+        'depression'        => 'mental_health_counselor',
+        'hopelessness'      => 'mental_health_counselor',
+        'anxiety'           => 'mental_health_counselor',
+        'psychiatric'       => 'psychiatrist',
+        'family_issues'     => 'social_worker',
+        'marital_issues'    => 'social_worker',
+        'rehabilitation'    => 'rehabilitation_specialist',
+        'skill_development' => 'skill_development_trainer',
+        'other'             => 'mental_health_counselor',
+    ];
+
+    $targetCategory = $categoryMap[$issueCategory] ?? 'mental_health_counselor';
+
+    // --- Step 1: exact category match with capacity ---
+    $member = findMemberByCategory($db, $targetCategory);
+    if ($member) return $member;
+
+    // --- Step 2: generic counselor fallback (only if step 1 used a specialist) ---
+    if ($targetCategory !== 'mental_health_counselor') {
+        $member = findMemberByCategory($db, 'mental_health_counselor');
+        if ($member) return $member;
+    }
+
+    // --- Step 3: any active member with remaining capacity, least loaded first ---
+    $stmt = $db->prepare("
+        SELECT tm.*,
+               COUNT(c.id) AS current_load
+        FROM   team_members tm
+        LEFT JOIN cases c
+               ON  c.team_member_id = tm.id
+               AND c.status NOT IN ('closed', 'cancelled')
+        WHERE  tm.status = 'active'
+        GROUP  BY tm.id
+        HAVING current_load < COALESCE(tm.max_cases, 10)
+        ORDER  BY current_load ASC
+        LIMIT  1
+    ");
+    $stmt->execute();
+    $member = $stmt->fetch();
+    if ($member) return $member;
+
+    // --- Step 4: nobody available ---
+    return null;
 }
 
 /**
@@ -251,15 +478,22 @@ function createAndAssignCase($userId, $issueCategory, $description, $severity = 
         return ['success' => false, 'error' => 'No suitable NGO available at this time'];
     }
     
-    // Find available team member
-    $teamMember = findAvailableTeamMember($ngo['id'], $issueCategory);
-    
+    // Find the best available team member (may be null if all are at capacity)
+    $teamMember = findAvailableTeamMember($issueCategory);
+
+    // Case status depends on whether a team member was auto-assigned
+    $caseStatus = $teamMember ? 'assigned' : 'pending';
+
     // Create case
     $caseNumber = generateCaseNumber();
-    
-    $stmt = $db->prepare("INSERT INTO cases (case_number, user_id, ngo_id, team_member_id, issue_category, severity_level, description, status, assignment_date) 
-                          VALUES (?, ?, ?, ?, ?, ?, ?, 'assigned', NOW())");
-    
+
+    $stmt = $db->prepare("
+        INSERT INTO cases
+            (case_number, user_id, ngo_id, team_member_id,
+             issue_category, severity_level, description, status, assignment_date)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+    ");
+
     $result = $stmt->execute([
         $caseNumber,
         $userId,
@@ -267,33 +501,51 @@ function createAndAssignCase($userId, $issueCategory, $description, $severity = 
         $teamMember ? $teamMember['id'] : null,
         $issueCategory,
         $severity,
-        $description
+        $description,
+        $caseStatus,
     ]);
-    
+
     if ($result) {
         $caseId = $db->lastInsertId();
-        
-        // Update NGO case count
-        $db->prepare("UPDATE ngos SET current_cases = current_cases + 1 WHERE id = ?")->execute([$ngo['id']]);
-        
-        // Update team member case count if assigned
+
+        // Update NGO active case count
+        $db->prepare("UPDATE ngos SET current_cases = current_cases + 1 WHERE id = ?")
+           ->execute([$ngo['id']]);
+
+        // Notify user
+        $userMsg = $teamMember
+            ? "Your case #{$caseNumber} has been created and assigned to {$ngo['organization_name']}."
+            : "Your case #{$caseNumber} has been created. A team member will be assigned shortly.";
+        sendNotification('user', $userId, 'Case Created', $userMsg, 'success');
+
+        // Notify NGO
+        sendNotification('ngo', $ngo['id'], 'New Case Assigned',
+            "A new case #{$caseNumber} has been assigned to your organization.", 'info');
+
+        // Notify the assigned team member directly
         if ($teamMember) {
-            $db->prepare("UPDATE team_members SET cases_assigned = cases_assigned + 1 WHERE id = ?")->execute([$teamMember['id']]);
+            sendNotification('team_member', $teamMember['id'], 'New Case Assigned to You',
+                "Case #{$caseNumber} ({$issueCategory}) has been assigned to you.", 'info');
         }
-        
-        // Send notifications
-        sendNotification('user', $userId, 'Case Created', "Your case #{$caseNumber} has been created and assigned to {$ngo['organization_name']}.", 'success');
-        sendNotification('ngo', $ngo['id'], 'New Case Assigned', "A new case #{$caseNumber} has been assigned to your organization.", 'info');
-        
+
+        // If no team member found, alert admin to assign one manually
+        if (!$teamMember) {
+            $adminRows = $db->query("SELECT id FROM admins")->fetchAll();
+            foreach ($adminRows as $admin) {
+                sendNotification('admin', $admin['id'], 'Manual Assignment Needed',
+                    "Case #{$caseNumber} was created but no available team member was found. Please assign one manually.", 'warning');
+            }
+        }
+
         return [
-            'success' => true,
-            'case_id' => $caseId,
+            'success'     => true,
+            'case_id'     => $caseId,
             'case_number' => $caseNumber,
-            'ngo' => $ngo,
-            'team_member' => $teamMember
+            'ngo'         => $ngo,
+            'team_member' => $teamMember,
         ];
     }
-    
+
     return ['success' => false, 'error' => 'Failed to create case'];
 }
 
@@ -641,15 +893,9 @@ function adminAssignTeamMember($caseId, $teamMemberId) {
     
     $db->beginTransaction();
     try {
-        // Decrement old member's assigned count
-        if ($case['team_member_id']) {
-            $db->prepare("UPDATE team_members SET cases_assigned = GREATEST(cases_assigned - 1, 0) WHERE id = ?")->execute([$case['team_member_id']]);
-        }
         
         $stmt = $db->prepare("UPDATE cases SET team_member_id = ?, status = CASE WHEN status = 'pending' THEN 'assigned' ELSE status END WHERE id = ?");
         $stmt->execute([$teamMemberId, $caseId]);
-        
-        $db->prepare("UPDATE team_members SET cases_assigned = cases_assigned + 1 WHERE id = ?")->execute([$teamMemberId]);
         
         $db->prepare("INSERT INTO case_progress (case_id, status, notes, updated_by) VALUES (?, 'assigned', ?, ?)")
            ->execute([$caseId, "Team member assigned: {$member['full_name']} ({$member['role']})", $teamMemberId]);
@@ -791,7 +1037,7 @@ function getCasePrograms($caseId) {
 /**
  * Admin closes a case after recovery
  */
-function adminCloseCase($caseId, $closureRemarks, $adminId) {
+function adminCloseCase($caseId, $closureRemarks, $adminId, $markRecovered = false) {
     $db = getDB();
     
     $stmt = $db->prepare("SELECT * FROM cases WHERE id = ?");
@@ -808,18 +1054,19 @@ function adminCloseCase($caseId, $closureRemarks, $adminId) {
         if ($case['ngo_id']) {
             $db->prepare("UPDATE ngos SET current_cases = GREATEST(current_cases - 1, 0) WHERE id = ?")->execute([$case['ngo_id']]);
         }
-        // Decrement team member case count
-        if ($case['team_member_id']) {
-            $db->prepare("UPDATE team_members SET cases_assigned = GREATEST(cases_assigned - 1, 0) WHERE id = ?")->execute([$case['team_member_id']]);
-        }
         
-        // Update user status to recovered
-        $db->prepare("UPDATE users SET status = 'recovered' WHERE id = ?")->execute([$case['user_id']]);
+        // Only mark recovered when admin explicitly confirms
+        if ($markRecovered) {
+            $db->prepare("UPDATE users SET status = 'recovered' WHERE id = ?")->execute([$case['user_id']]);
+        }
         
         $db->prepare("INSERT INTO case_progress (case_id, status, notes) VALUES (?, 'closed', ?)")
            ->execute([$caseId, "Case closed by Admin. Remarks: {$closureRemarks}"]);
         
-        sendNotification('user', $case['user_id'], 'Case Closed', "Your case #{$case['case_number']} has been closed. We wish you well on your journey!", 'success');
+        $userMsg = $markRecovered
+            ? "Your case #{$case['case_number']} has been closed. We're glad you're on the path to recovery!"
+            : "Your case #{$case['case_number']} has been closed by the administrator.";
+        sendNotification('user', $case['user_id'], 'Case Closed', $userMsg, 'success');
         if ($case['ngo_id']) {
             sendNotification('ngo', $case['ngo_id'], 'Case Closed', "Case #{$case['case_number']} has been closed by the administrator.", 'info');
         }
@@ -828,7 +1075,7 @@ function adminCloseCase($caseId, $closureRemarks, $adminId) {
         return ['success' => true];
     } catch (Exception $e) {
         $db->rollBack();
-        return ['success' => false, 'error' => 'Failed to close case.'];
+        return ['success' => false, 'error' => 'Failed to close case: ' . $e->getMessage()];
     }
 }
 

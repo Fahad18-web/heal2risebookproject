@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS team_members (
     ngo_id INT NOT NULL,
     full_name VARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL,
+    password VARCHAR(255) DEFAULT NULL,
     phone VARCHAR(20),
     role ENUM('counselor', 'psychiatrist', 'social_worker', 'coordinator', 'volunteer') NOT NULL,
     qualification VARCHAR(255),
@@ -131,7 +132,7 @@ CREATE TABLE IF NOT EXISTS case_progress (
 -- Notifications Table
 CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_type ENUM('user', 'ngo', 'admin') NOT NULL,
+    user_type ENUM('user', 'ngo', 'admin', 'team_member') NOT NULL,
     user_id INT NOT NULL,
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,

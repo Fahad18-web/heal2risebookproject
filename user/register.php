@@ -127,7 +127,7 @@ require_once __DIR__ . '/../includes/header.php';
 
 <main id="main-content" class="auth-wrapper">
     <div class="container">
-        <div class="auth-card">
+        <div class="auth-card auth-card-lg">
             <div class="card">
                 <div class="card-header">
                     <i class="bi bi-shield-lock display-4 mb-3"></i>
