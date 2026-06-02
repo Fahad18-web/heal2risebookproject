@@ -260,17 +260,20 @@ require_once __DIR__ . '/../includes/header.php';
                         <a class="nav-link" href="<?= url('/ngo/dashboard.php') ?>">
                             <i class="bi bi-speedometer2"></i>Dashboard
                         </a>
+                        <a class="nav-link" href="<?= url('/ngo/profile.php') ?>">
+                            <i class="bi bi-building"></i>Organization Profile
+                        </a>
                         <a class="nav-link active" href="<?= url('/ngo/cases.php') ?>">
-                            <i class="bi bi-folder"></i>Cases
+                            <i class="bi bi-folder"></i>Assigned Cases
                         </a>
                         <a class="nav-link" href="<?= url('/ngo/team.php') ?>">
-                            <i class="bi bi-people"></i>Team
+                            <i class="bi bi-people"></i>Team Members
                         </a>
-                        <a class="nav-link" href="<?= url('/ngo/chat-reply.php?case_id=' . $caseId) ?>">
-                            <i class="bi bi-chat-dots"></i>Messages
+                        <a class="nav-link" href="<?= url('/ngo/donations.php') ?>">
+                            <i class="bi bi-cash-stack"></i>Donations
                         </a>
-                        <a class="nav-link" href="<?= url('/ngo/profile.php') ?>">
-                            <i class="bi bi-gear"></i>Settings
+                        <a class="nav-link" href="<?= url('/ngo/notifications.php') ?>">
+                            <i class="bi bi-bell"></i>Notifications
                         </a>
                         <hr>
                         <a class="nav-link text-danger" href="<?= url('/logout.php') ?>">
@@ -330,7 +333,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 
                                 <strong>Case Description:</strong>
                                 <div class="bg-light p-3 rounded mt-2 mb-3">
-                                    <?= nl2br(htmlspecialchars($case['description'])) ?>
+                                    <?= nl2br(htmlspecialchars_decode($case['description'], ENT_QUOTES)) ?>
                                 </div>
                                 
                                 <?php if ($case['user_issue_description']): ?>
@@ -699,7 +702,7 @@ require_once __DIR__ . '/../includes/header.php';
                                         </small>
                                     </div>
                                     <?php if ($program['description']): ?>
-                                        <p class="small text-muted mb-2"><?= htmlspecialchars($program['description']) ?></p>
+                                        <p class="small text-muted mb-2"><?= htmlspecialchars_decode($program['description'], ENT_QUOTES) ?></p>
                                     <?php endif; ?>
                                     <?php if ($program['progress_notes']): ?>
                                         <p class="small mb-2"><strong>Progress:</strong> <?= nl2br(htmlspecialchars($program['progress_notes'])) ?></p>

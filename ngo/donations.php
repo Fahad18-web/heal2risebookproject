@@ -40,10 +40,21 @@ require_once __DIR__ . '/../includes/header.php';
                     </div>
 
                     <nav class="nav flex-column">
-                        <a class="nav-link" href="<?= url('/ngo/dashboard.php') ?>"><i class="bi bi-speedometer2"></i>Dashboard</a>
-                        <a class="nav-link" href="<?= url('/ngo/cases.php') ?>"><i class="bi bi-folder"></i>Assigned Cases</a>
-                        <a class="nav-link" href="<?= url('/ngo/team.php') ?>"><i class="bi bi-people"></i>Team Members</a>
-                        <a class="nav-link active" href="<?= url('/ngo/donations.php') ?>"><i class="bi bi-cash-stack"></i>Donations</a>
+                        <a class="nav-link" href="<?= url('/ngo/dashboard.php') ?>">
+                            <i class="bi bi-speedometer2"></i>Dashboard
+                        </a>
+                        <a class="nav-link" href="<?= url('/ngo/profile.php') ?>">
+                            <i class="bi bi-building"></i>Organization Profile
+                        </a>
+                        <a class="nav-link" href="<?= url('/ngo/cases.php') ?>">
+                            <i class="bi bi-folder"></i>Assigned Cases
+                        </a>
+                        <a class="nav-link" href="<?= url('/ngo/team.php') ?>">
+                            <i class="bi bi-people"></i>Team Members
+                        </a>
+                        <a class="nav-link active" href="<?= url('/ngo/donations.php') ?>">
+                            <i class="bi bi-cash-stack"></i>Donations
+                        </a>
                         <a class="nav-link" href="<?= url('/ngo/notifications.php') ?>">
                             <i class="bi bi-bell"></i>Notifications
                             <?php if ($unreadCount > 0): ?>
@@ -51,7 +62,9 @@ require_once __DIR__ . '/../includes/header.php';
                             <?php endif; ?>
                         </a>
                         <hr>
-                        <a class="nav-link text-danger" href="<?= url('/logout.php') ?>"><i class="bi bi-box-arrow-right"></i>Logout</a>
+                        <a class="nav-link text-danger" href="<?= url('/logout.php') ?>">
+                            <i class="bi bi-box-arrow-right"></i>Logout
+                        </a>
                     </nav>
                 </div>
             </div>

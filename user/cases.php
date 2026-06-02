@@ -44,14 +44,17 @@ require_once __DIR__ . '/../includes/header.php';
                         <a class="nav-link" href="<?= url('/user/dashboard.php') ?>">
                             <i class="bi bi-speedometer2"></i>Dashboard
                         </a>
+                        <a class="nav-link" href="<?= url('/user/profile.php') ?>">
+                            <i class="bi bi-person"></i>My Profile
+                        </a>
                         <a class="nav-link active" href="<?= url('/user/cases.php') ?>">
                             <i class="bi bi-folder"></i>My Cases
                         </a>
-                        <a class="nav-link" href="<?= url('/user/request-support.php') ?>">
-                            <i class="bi bi-plus-circle"></i>Request Support
-                        </a>
-                        <a class="nav-link" href="<?= url('/user/profile.php') ?>">
-                            <i class="bi bi-person"></i>Profile
+                        <a class="nav-link" href="<?= url('/user/notifications.php') ?>">
+                            <i class="bi bi-bell"></i>Notifications
+                            <?php if ($unreadCount > 0): ?>
+                                <span class="badge bg-danger ms-2"><?= $unreadCount ?></span>
+                            <?php endif; ?>
                         </a>
                         <hr>
                         <a class="nav-link text-danger" href="<?= url('/logout.php') ?>">

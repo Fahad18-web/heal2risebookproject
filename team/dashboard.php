@@ -70,6 +70,22 @@ $stmt = $db->prepare("
 $stmt->execute([$teamMemberId]);
 $recentCases = $stmt->fetchAll();
 
+// ── Upcoming Sessions (next 5 scheduled) ────────────────────────────
+$stmt = $db->prepare("
+    SELECT cs.id, cs.session_date, cs.session_time, cs.session_type, cs.duration_minutes,
+           c.case_number, c.id as case_id, u.full_name as user_name
+    FROM counseling_sessions cs
+    JOIN cases c ON cs.case_id = c.id
+    JOIN users u ON c.user_id = u.id
+    WHERE cs.counselor_id = ?
+      AND cs.status = 'scheduled'
+      AND cs.session_date >= CURDATE()
+    ORDER BY cs.session_date ASC, cs.session_time ASC
+    LIMIT 5
+");
+$stmt->execute([$teamMemberId]);
+$upcomingSessions = $stmt->fetchAll();
+
 // ── Unread messages count ────────────────────────────────────────────
 $unreadMessages = getUnreadMessageCount('team_member', $teamMemberId);
 
@@ -127,17 +143,17 @@ require_once __DIR__ . '/../includes/header.php';
             <?php endif; ?>
 
             <!-- Welcome Card -->
-            <div class="card mb-4 shadow-sm border-0 bg-primary text-white">
+            <div class="card mb-4 border-0 shadow-sm">
                 <div class="card-body p-4 d-flex align-items-center">
-                    <div class="me-4">
-                        <i class="bi bi-person-badge display-3"></i>
+                    <div class="avatar-xl bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center me-4">
+                        <i class="bi bi-person-badge display-5"></i>
                     </div>
                     <div>
-                        <h2 class="mb-1">
+                        <h3 class="mb-1 fw-bold text-dark">
                             Welcome back, <?= htmlspecialchars($userData['name'] ?? 'Team Member') ?>!
-                        </h2>
+                        </h3>
                         <p class="mb-0 fs-5">
-                            <span class="badge bg-light text-primary">
+                            <span class="badge bg-light text-primary border px-3 py-2 rounded-pill">
                                 <?= ucfirst(str_replace('_', ' ', $userData['category'] ?? '')) ?>
                             </span>
                         </p>
@@ -148,37 +164,33 @@ require_once __DIR__ . '/../includes/header.php';
             <!-- Stats Row -->
             <div class="row mb-4">
                 <div class="col-md-3 mb-3">
-                    <div class="card shadow-sm h-100 border-start border-primary border-4">
-                        <div class="card-body">
-                            <h6 class="text-muted text-uppercase fw-bold mb-2">Total Cases</h6>
-                            <h2 class="mb-0 text-primary"><?= $totalCases ?></h2>
-                        </div>
+                    <div class="stat-card primary h-100">
+                        <h3><?= $totalCases ?></h3>
+                        <p>Total Cases</p>
+                        <i class="bi bi-folder2-open stat-icon"></i>
                     </div>
                 </div>
                 <div class="col-md-3 mb-3">
-                    <div class="card shadow-sm h-100 border-start border-info border-4">
-                        <div class="card-body">
-                            <h6 class="text-muted text-uppercase fw-bold mb-2">In Progress</h6>
-                            <h2 class="mb-0 text-info"><?= $inProgress ?></h2>
-                        </div>
+                    <div class="stat-card info h-100">
+                        <h3><?= $inProgress ?></h3>
+                        <p>In Progress</p>
+                        <i class="bi bi-arrow-clockwise stat-icon"></i>
                     </div>
                 </div>
                 <div class="col-md-3 mb-3">
-                    <div class="card shadow-sm h-100 border-start border-success border-4">
-                        <div class="card-body">
-                            <h6 class="text-muted text-uppercase fw-bold mb-2">100% Progress</h6>
-                            <h2 class="mb-0 text-success"><?= $atHundredPercent ?></h2>
-                            <small class="text-muted">Awaiting satisfaction</small>
-                        </div>
+                    <div class="stat-card success h-100">
+                        <h3><?= $atHundredPercent ?></h3>
+                        <p>100% Progress</p>
+                        <i class="bi bi-check2-circle stat-icon"></i>
+                        <small class="text-muted d-block mt-2">Awaiting satisfaction</small>
                     </div>
                 </div>
                 <div class="col-md-3 mb-3">
-                    <div class="card shadow-sm h-100 border-start border-warning border-4">
-                        <div class="card-body">
-                            <h6 class="text-muted text-uppercase fw-bold mb-2">Pending Closures</h6>
-                            <h2 class="mb-0 text-warning"><?= $pendingClosures ?></h2>
-                            <small class="text-muted">Sent to admin</small>
-                        </div>
+                    <div class="stat-card warning h-100">
+                        <h3><?= $pendingClosures ?></h3>
+                        <p>Pending Closures</p>
+                        <i class="bi bi-lock stat-icon"></i>
+                        <small class="text-muted d-block mt-2">Sent to admin</small>
                     </div>
                 </div>
             </div>
@@ -264,6 +276,49 @@ require_once __DIR__ . '/../includes/header.php';
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+
+            <!-- Upcoming Sessions -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-calendar-check me-2 text-primary"></i>Upcoming Sessions
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <?php if (empty($upcomingSessions)): ?>
+                        <div class="text-center text-muted py-5">
+                            <i class="bi bi-calendar-x fs-1 d-block mb-2"></i>
+                            No upcoming sessions scheduled.
+                        </div>
+                    <?php else: ?>
+                        <div class="list-group list-group-flush">
+                            <?php foreach ($upcomingSessions as $session): ?>
+                                <div class="list-group-item d-flex justify-content-between align-items-center p-3">
+                                    <div>
+                                        <div class="fw-semibold mb-1">
+                                            <i class="bi bi-calendar3 text-primary me-1"></i>
+                                            <?= date('D, d M Y', strtotime($session['session_date'])) ?>
+                                            <?php if ($session['session_time']): ?>
+                                                &nbsp;<i class="bi bi-clock text-muted"></i>
+                                                <?= date('h:i A', strtotime($session['session_time'])) ?>
+                                            <?php endif; ?>
+                                        </div>
+                                        <small class="text-muted">
+                                            <?= htmlspecialchars($session['user_name']) ?>
+                                            &middot; <?= ucfirst(str_replace('_', ' ', $session['session_type'])) ?>
+                                            &middot; <?= $session['duration_minutes'] ?> min
+                                        </small>
+                                    </div>
+                                    <a href="<?= url('/team/case-details.php?id=' . $session['case_id']) ?>"
+                                       class="btn btn-outline-primary btn-sm">
+                                        <i class="bi bi-arrow-right me-1"></i><?= htmlspecialchars($session['case_number']) ?>
+                                    </a>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 

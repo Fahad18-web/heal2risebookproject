@@ -85,6 +85,7 @@ if (empty($adminConversations)) {
     }
 }
 
+$unreadMessages = getUnreadMessageCount('team_member', $teamMemberId);
 $pageTitle = 'Messages';
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -92,25 +93,29 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="container-fluid">
     <div class="row">
         <!-- Sidebar -->
-        <div class="col-md-3 col-lg-2 d-md-block dashboard-sidebar collapse">
-            <div class="position-sticky pt-3">
-                <ul class="nav flex-column">
-                    <li class="nav-item">
-                        <a class="nav-link" href="<?= url('/team/dashboard.php') ?>">
-                            <i class="bi bi-speedometer2"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="<?= url('/team/cases.php') ?>">
-                            <i class="bi bi-folder2-open"></i> My Cases
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="<?= url('/team/chat.php') ?>">
-                            <i class="bi bi-chat-dots"></i> Messages
-                        </a>
-                    </li>
-                </ul>
+        <div class="col-md-3 col-lg-2 mb-4">
+            <div class="dashboard-sidebar">
+                <nav class="nav flex-column">
+                    <a class="nav-link" href="<?= url('/team/dashboard.php') ?>">
+                        <i class="bi bi-speedometer2"></i>Dashboard
+                    </a>
+                    <a class="nav-link" href="<?= url('/team/cases.php') ?>">
+                        <i class="bi bi-folder"></i>My Cases
+                    </a>
+                    <a class="nav-link active" href="<?= url('/team/chat.php') ?>">
+                        <i class="bi bi-chat-dots"></i>Messages
+                        <?php if ($unreadMessages > 0): ?>
+                            <span class="badge bg-danger ms-2"><?= $unreadMessages ?></span>
+                        <?php endif; ?>
+                    </a>
+                    <a class="nav-link" href="<?= url('/team/profile.php') ?>">
+                        <i class="bi bi-person"></i>My Profile
+                    </a>
+                    <hr>
+                    <a class="nav-link text-danger" href="<?= url('/logout.php') ?>">
+                        <i class="bi bi-box-arrow-left"></i>Logout
+                    </a>
+                </nav>
             </div>
         </div>
 

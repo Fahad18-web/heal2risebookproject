@@ -110,30 +110,49 @@ $pageTitle = 'Admin Chat Hub & Approvals';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<div class="container-fluid">
+<div class="container-fluid py-4">
     <div class="row">
-        <!-- Sidebar Placeholder -->
-        <div class="col-md-3 col-lg-2 d-md-block dashboard-sidebar collapse bg-dark pt-3">
-            <ul class="nav flex-column">
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="<?= url('/admin/dashboard.php') ?>">
-                        <i class="bi bi-speedometer2 me-2"></i> Dashboard
+        <!-- Sidebar -->
+        <div class="col-md-4 col-lg-3 mb-4">
+            <div class="dashboard-sidebar">
+                <div class="text-center mb-4">
+                    <div class="avatar-circle mx-auto mb-3" style="width: 80px; height: 80px;">
+                        <i class="bi bi-shield-lock-fill fs-1"></i>
+                    </div>
+                    <h5 class="mb-1">Admin Panel</h5>
+                </div>
+                
+                <nav class="nav flex-column">
+                    <a class="nav-link" href="<?= url('/admin/dashboard.php') ?>">
+                        <i class="bi bi-speedometer2"></i>Dashboard
                     </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link text-white" href="<?= url('/admin/create-team-member.php') ?>">
-                        <i class="bi bi-person-plus me-2"></i> Create Team
+                    <a class="nav-link" href="<?= url('/admin/profile.php') ?>">
+                        <i class="bi bi-person"></i>My Profile
                     </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link active text-white fw-bold" href="<?= url('/admin/chat.php') ?>">
-                        <i class="bi bi-chat-dots me-2"></i> Communications 
+                    <a class="nav-link" href="<?= url('/admin/create-team-member.php') ?>">
+                        <i class="bi bi-person-plus"></i>Create Team
                     </a>
-                </li>
-            </ul>
+                    <a class="nav-link active" href="<?= url('/admin/chat.php') ?>">
+                        <i class="bi bi-chat-dots"></i>Communications
+                    </a>
+                    <a class="nav-link" href="<?= url('/admin/users.php') ?>">
+                        <i class="bi bi-people"></i>Users
+                    </a>
+                    <a class="nav-link" href="<?= url('/admin/ngos.php') ?>">
+                        <i class="bi bi-building"></i>NGOs
+                    </a>
+                    <a class="nav-link" href="<?= url('/admin/cases.php') ?>">
+                        <i class="bi bi-folder"></i>Cases
+                    </a>
+                    <hr>
+                    <a class="nav-link text-danger" href="<?= url('/logout.php') ?>">
+                        <i class="bi bi-box-arrow-right"></i>Logout
+                    </a>
+                </nav>
+            </div>
         </div>
 
-        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+        <main class="col-md-8 col-lg-9">
             
             <?php $flash = getFlashMessage(); if ($flash): ?>
                 <div class="alert alert-<?= $flash['type'] ?> alert-dismissible fade show" role="alert">
@@ -197,10 +216,10 @@ require_once __DIR__ . '/../includes/header.php';
             <!-- SECTION 2: Master Chat Portal -->
             <div class="row">
                 <!-- Chat Subject List -->
-                <div class="col-md-4 mb-4">
+                <div class="col-md-5 mb-4">
                     <div class="card shadow-sm border-0 h-100">
-                        <div class="card-header bg-dark text-white">
-                            <i class="bi bi-people-fill me-2"></i> Team Roster
+                        <div class="card-header bg-white border-bottom py-3">
+                            <h6 class="mb-0 fw-bold"><i class="bi bi-people text-primary me-2"></i> Team Roster</h6>
                         </div>
                         <ul class="list-group list-group-flush h-100" style="max-height: 600px; overflow-y: auto;">
                             <?php foreach ($teamMembers as $tm): 
@@ -211,11 +230,10 @@ require_once __DIR__ . '/../includes/header.php';
                                 $isActive = ($activeWith === 'team_member' && $activeChatId == $tm['id']);
                             ?>
                             <a href="<?= url("/admin/chat.php?with=team_member&id={$tm['id']}") ?>" 
-                               class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 <?= $isActive ? 'active bg-primary text-white border-primary' : '' ?>">
+                               class="list-group-item list-group-item-action d-flex justify-content-between align-items-center py-3 <?= $isActive ? 'active text-white' : '' ?>" <?= $isActive ? 'style="background-color: var(--color-primary-600); border-color: var(--color-primary-600);"' : '' ?>>
                                 <div class="d-flex align-items-center">
-                                    <div class="rounded-circle d-flex justify-content-center align-items-center me-3 <?= $isActive ? 'bg-light text-primary' : 'bg-primary text-white' ?>" style="width: 40px; height: 40px;">
-                                        <i class="bi bi-person-fill fs-5"></i>
-                                    </div>
+                                    <img src="https://ui-avatars.com/api/?name=<?= urlencode($tm['full_name']) ?>&background=<?= $isActive ? 'fff' : '4A90A4' ?>&color=<?= $isActive ? '4A90A4' : 'fff' ?>" 
+                                         class="rounded-circle me-3" width="40" height="40">
                                     <div>
                                         <h6 class="mb-0 fw-bold"><?= htmlspecialchars($tm['full_name']) ?></h6>
                                         <small class="<?= $isActive ? 'text-light' : 'text-muted' ?>">
@@ -234,25 +252,24 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
 
                 <!-- Chat Feed Panel -->
-                <div class="col-md-8 mb-4">
-                    <div class="h-100 d-flex flex-column" style="min-height: 70vh;">
+                <div class="col-md-7 mb-4">
+                    <div class="card shadow-sm border-0 h-100 d-flex flex-column" style="min-height: 70vh;">
                         <?php if ($activeChatId && $activeWith === 'team_member'): ?>
                             <!-- Active Chat Header -->
-                            <div class="chat-header mb-3">
-                                <div class="avatar-circle">
-                                    <i class="bi bi-person-fill fs-5"></i>
-                                </div>
-                                <div class="user-info w-100 d-flex justify-content-between align-items-center">
+                            <div class="card-header bg-white border-bottom py-3 chat-header d-flex align-items-center">
+                                <img src="https://ui-avatars.com/api/?name=<?= urlencode($activeMemberName) ?>&background=4A90A4&color=fff" 
+                                     class="rounded-circle me-3" width="45" height="45">
+                                <div class="w-100 d-flex justify-content-between align-items-center">
                                     <div>
-                                        <h5 class="mb-0 fw-bold"><?= htmlspecialchars($activeMemberName) ?></h5>
-                                        <small class="text-white-50">System Administrator</small>
+                                        <h6 class="mb-0 fw-bold"><?= htmlspecialchars($activeMemberName) ?></h6>
+                                        <small class="text-muted">System Administrator</small>
                                     </div>
-                                    <span class="badge bg-white text-primary rounded-pill px-3 py-2"><?= ucfirst(str_replace('_', ' ', $activeMemberCategory)) ?></span>
+                                    <span class="badge bg-primary rounded-pill px-3 py-2"><?= ucfirst(str_replace('_', ' ', $activeMemberCategory)) ?></span>
                                 </div>
                             </div>
                             
                             <!-- Chat Box -->
-                            <div class="chat-box-area flex-grow-1" id="chat-box">
+                            <div class="card-body chat-box-area flex-grow-1" id="chat-box" style="overflow-y: auto;">
                                 <?php if (empty($messages)): ?>
                                     <div class="text-center text-muted mt-auto mb-auto h-100 d-flex align-items-center justify-content-center">
                                         <p class="mb-0 bg-white d-inline-block px-3 py-2 rounded shadow-sm">No messages yet. Send a message below to start the conversation.</p>
@@ -290,28 +307,26 @@ require_once __DIR__ . '/../includes/header.php';
                             </div>
                             
                             <!-- Reply Input -->
-                            <div class="chat-input-area mt-3">
+                            <div class="card-footer bg-white border-top chat-input-area mt-0 py-3">
                                 <form method="POST" action="">
                                     <input type="hidden" name="csrf_token" value="<?= generateCSRFToken() ?>">
                                     <input type="hidden" name="action" value="send_message">
                                     <input type="hidden" name="receiver_id" value="<?= $activeChatId ?>">
                                     
                                     <div class="input-group">
-                                        <textarea name="message" class="form-control" rows="1" placeholder="Type your message..." required maxlength="1000"></textarea>
-                                        <button class="btn btn-send d-flex align-items-center justify-content-center" type="submit" style="width: 100px;">
-                                            <span class="me-2 fw-bold">Send</span> <i class="bi bi-send-fill"></i>
+                                        <textarea name="message" class="form-control rounded-start" rows="1" placeholder="Type your message..." required maxlength="1000" style="resize: none;"></textarea>
+                                        <button class="btn btn-primary d-flex align-items-center justify-content-center px-4" type="submit">
+                                            <span class="fw-bold d-none d-md-inline me-2">Send</span> <i class="bi bi-send-fill"></i>
                                         </button>
                                     </div>
                                 </form>
                             </div>
                         <?php else: ?>
                             <!-- Empty State -->
-                            <div class="card shadow-sm border-0 h-100">
-                                <div class="card-body d-flex flex-column justify-content-center align-items-center bg-light text-muted h-100" style="min-height: 400px;">
-                                    <i class="bi bi-chat-square-dots display-1 mb-3 opacity-25"></i>
-                                    <h4>Select a conversation</h4>
-                                    <p>Click on a team member from the directory to view or start a chat thread.</p>
-                                </div>
+                            <div class="card-body d-flex flex-column justify-content-center align-items-center bg-light text-muted h-100" style="min-height: 400px; border-radius: var(--bs-border-radius);">
+                                <i class="bi bi-chat-square-dots display-1 mb-3 opacity-25"></i>
+                                <h4>Select a conversation</h4>
+                                <p>Click on a team member from the directory to view or start a chat thread.</p>
                             </div>
                         <?php endif; ?>
                     </div>

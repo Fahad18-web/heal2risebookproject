@@ -157,9 +157,10 @@ require_once __DIR__ . '/../includes/header.php';
             <!-- Sidebar -->
             <div class="col-md-3 col-lg-2 mb-4">
                 <div class="dashboard-sidebar">
-                    <div class="text-center mb-4">
+                                        <div class="text-center mb-4">
                         <i class="bi bi-shield-lock-fill display-4 text-primary"></i>
                         <h5 class="mt-2 mb-0">Admin Panel</h5>
+                        <small class="text-muted"><?= $_SESSION['user_data']['name'] ?? 'Administrator' ?></small>
                     </div>
                     
                     <nav class="nav flex-column">
@@ -171,15 +172,45 @@ require_once __DIR__ . '/../includes/header.php';
                         </a>
                         <a class="nav-link" href="<?= url('/admin/users.php') ?>">
                             <i class="bi bi-people"></i>Users
+                            <?php
+                            $pu = $db->query("SELECT COUNT(*) FROM users WHERE verification_status = 'pending'")->fetchColumn();
+                            if ($pu > 0): ?>
+                                <span class="badge bg-warning ms-auto"><?= $pu ?></span>
+                            <?php endif; ?>
                         </a>
                         <a class="nav-link" href="<?= url('/admin/ngos.php') ?>">
                             <i class="bi bi-building"></i>NGOs
+                            <?php
+                            $pn = $db->query("SELECT COUNT(*) FROM ngos WHERE verification_status = 'pending'")->fetchColumn();
+                            if ($pn > 0): ?>
+                                <span class="badge bg-warning ms-auto"><?= $pn ?></span>
+                            <?php endif; ?>
                         </a>
                         <a class="nav-link active" href="<?= url('/admin/cases.php') ?>">
                             <i class="bi bi-folder"></i>Cases
                         </a>
+                        <a class="nav-link" href="<?= url('/admin/donations.php') ?>">
+                            <i class="bi bi-cash-stack"></i>Donations
+                            <?php
+                            $pd = $db->query("SELECT COUNT(*) FROM donations WHERE payment_status = 'pending'")->fetchColumn();
+                            if ($pd > 0): ?>
+                                <span class="badge bg-warning ms-auto"><?= $pd ?></span>
+                            <?php endif; ?>
+                        </a>
+                        <a class="nav-link" href="<?= url('/admin/create-team-member.php') ?>">
+                            <i class="bi bi-people me-2"></i>Team Members
+                        </a>
                         <a class="nav-link" href="<?= url('/admin/chat.php') ?>">
-                            <i class="bi bi-chat-dots"></i>Messages
+                            <i class="bi bi-chat-dots me-2"></i>Messages
+                            <?php
+                            $pendingClosure = $db->prepare("SELECT COUNT(*) FROM satisfaction_requests 
+                                WHERE closure_request_sent = 1 AND admin_decision = 'pending'");
+                            $pendingClosure->execute();
+                            $closureCount = $pendingClosure->fetchColumn();
+                            if ($closureCount > 0):
+                            ?>
+                            <span class="badge bg-danger ms-auto"><?= $closureCount ?></span>
+                            <?php endif; ?>
                         </a>
                         <hr>
                         <a class="nav-link text-danger" href="<?= url('/logout.php') ?>">
@@ -255,7 +286,7 @@ require_once __DIR__ . '/../includes/header.php';
                                 
                                 <strong>Description:</strong>
                                 <div class="bg-light p-3 rounded mt-2">
-                                    <?= nl2br(htmlspecialchars($case['description'])) ?>
+                                    <?= nl2br(htmlspecialchars_decode($case['description'], ENT_QUOTES)) ?>
                                 </div>
                                 
                                 <?php if ($case['admin_notes']): ?>
@@ -502,7 +533,7 @@ require_once __DIR__ . '/../includes/header.php';
                                         <small class="text-muted"><?= formatDate($program['created_at']) ?></small>
                                     </div>
                                     <?php if ($program['description']): ?>
-                                        <p class="text-muted mt-2 mb-0 small"><?= htmlspecialchars($program['description']) ?></p>
+                                        <p class="text-muted mt-2 mb-0 small"><?= htmlspecialchars_decode($program['description'], ENT_QUOTES) ?></p>
                                     <?php endif; ?>
                                 </div>
                                 <?php endforeach; ?>

@@ -59,6 +59,15 @@ require_once __DIR__ . '/../includes/header.php';
                         <a class="nav-link active" href="<?= url('/ngo/team.php') ?>">
                             <i class="bi bi-people"></i>Team Members
                         </a>
+                        <a class="nav-link" href="<?= url('/ngo/donations.php') ?>">
+                            <i class="bi bi-cash-stack"></i>Donations
+                        </a>
+                        <a class="nav-link" href="<?= url('/ngo/notifications.php') ?>">
+                            <i class="bi bi-bell"></i>Notifications
+                            <?php if ($unreadCount > 0): ?>
+                                <span class="badge bg-danger ms-2"><?= $unreadCount ?></span>
+                            <?php endif; ?>
+                        </a>
                         <hr>
                         <a class="nav-link text-danger" href="<?= url('/logout.php') ?>">
                             <i class="bi bi-box-arrow-right"></i>Logout

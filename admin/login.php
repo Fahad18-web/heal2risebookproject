@@ -54,9 +54,9 @@ require_once __DIR__ . '/../includes/header.php';
 
 <main id="main-content" class="auth-wrapper">
     <div class="container">
-        <div class="auth-card auth-card-xs">
+        <div class="auth-card auth-card-sm">
             <div class="card">
-                <div class="card-header admin-card-header">
+                <div class="card-header">
                     <i class="bi bi-shield-lock-fill display-4 mb-3"></i>
                     <h3>Admin Login</h3>
                     <p>System Administration Access</p>
@@ -96,13 +96,24 @@ require_once __DIR__ . '/../includes/header.php';
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-dark btn-lg w-100 mb-3">
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mb-4">
                             <i class="bi bi-box-arrow-in-right me-2"></i>Secure Login
                         </button>
                     </form>
                     
-                    <div class="text-center mt-3">
-                        <a href="<?= url('/index.php') ?>" class="text-muted"><i class="bi bi-arrow-left me-2"></i>Back to Home</a>
+                    <div class="text-center mb-3">
+                        <span class="privacy-badge" style="background: var(--color-primary-50); color: var(--color-primary-700); border-color: var(--color-primary-100);">
+                            <i class="bi bi-shield-check" style="color: var(--color-primary-500);"></i>
+                            Your data is encrypted & protected
+                        </span>
+                    </div>
+
+                    <hr class="my-3">
+
+                    <div class="text-center">
+                        <a href="<?= url('/index.php') ?>" class="text-muted small">
+                            <i class="bi bi-arrow-left me-2"></i>Back to Home
+                        </a>
                     </div>
                 </div>
             </div>

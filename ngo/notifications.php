@@ -64,20 +64,23 @@ require_once __DIR__ . '/../includes/header.php';
                         <a class="nav-link" href="<?= url('/ngo/dashboard.php') ?>">
                             <i class="bi bi-speedometer2"></i>Dashboard
                         </a>
+                        <a class="nav-link" href="<?= url('/ngo/profile.php') ?>">
+                            <i class="bi bi-building"></i>Organization Profile
+                        </a>
                         <a class="nav-link" href="<?= url('/ngo/cases.php') ?>">
-                            <i class="bi bi-folder"></i>Cases
+                            <i class="bi bi-folder"></i>Assigned Cases
                         </a>
                         <a class="nav-link" href="<?= url('/ngo/team.php') ?>">
-                            <i class="bi bi-people"></i>Team
+                            <i class="bi bi-people"></i>Team Members
+                        </a>
+                        <a class="nav-link" href="<?= url('/ngo/donations.php') ?>">
+                            <i class="bi bi-cash-stack"></i>Donations
                         </a>
                         <a class="nav-link active" href="<?= url('/ngo/notifications.php') ?>">
                             <i class="bi bi-bell"></i>Notifications
                             <?php if ($unreadCount > 0): ?>
-                                <span class="badge bg-danger ms-auto"><?= $unreadCount ?></span>
+                                <span class="badge bg-danger ms-2"><?= $unreadCount ?></span>
                             <?php endif; ?>
-                        </a>
-                        <a class="nav-link" href="<?= url('/ngo/profile.php') ?>">
-                            <i class="bi bi-gear"></i>Settings
                         </a>
                         <hr>
                         <a class="nav-link text-danger" href="<?= url('/logout.php') ?>">

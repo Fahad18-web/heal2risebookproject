@@ -1,6 +1,4 @@
-# Heal2Rise Book Project - Viva Preparation Guide
-
-This document serves as a comprehensive guide to understanding the core business logic, database architecture, and implementation details of the Heal2Rise Book prototype. It is specifically designed to help explain the project during the Viva examination.
+# Heal2Rise Book Project
 
 ## 1. Core Business Logic Implementation
 
